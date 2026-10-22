@@ -25,6 +25,12 @@ app.use(express.json());
 
 // Category auto-detection keyword mapping
 const CATEGORY_KEYWORDS = {
+  'PhonePe': [
+    'phonepe', 'phone pay', 'phonepay', 'upi', 'gpay', 'google pay', 'paytm', 'online', 'qr', 'scan'
+  ],
+  'Cash': [
+    'cash', 'liquid cash', 'atm', 'withdrawal', 'hand cash', 'in hand', 'petty cash'
+  ],
   'Food & Drinks': [
     'tea', 'coffee', 'chai', 'snack', 'snacks', 'lunch', 'dinner', 'breakfast',
     'pizza', 'burger', 'food', 'restaurant', 'cafe', 'swiggy', 'zomato',

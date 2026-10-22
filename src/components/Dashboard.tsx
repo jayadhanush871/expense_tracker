@@ -65,6 +65,34 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const currentBalance = totalIncome - totalExpenses;
 
+  // PhonePe vs Cash Category Separation
+  const isPhonePeCategory = (cat: string) => {
+    const c = (cat || '').toLowerCase();
+    return c.includes('phonepe') || c.includes('phone pay') || c.includes('phonepay') || c.includes('upi') || c.includes('gpay') || c.includes('online');
+  };
+  const isCashCategory = (cat: string) => {
+    const c = (cat || '').toLowerCase();
+    return c.includes('cash') || c.includes('atm') || c.includes('hand');
+  };
+
+  const phonePeExpenses = expenses
+    .filter(e => isPhonePeCategory(e.category))
+    .reduce((sum, e) => sum + Number(e.amount), 0);
+  const phonePeIncomes = incomes
+    .filter(i => isPhonePeCategory(i.category))
+    .reduce((sum, i) => sum + Number(i.amount), 0);
+  const phonePeBalance = phonePeIncomes - phonePeExpenses;
+  const phonePeCount = expenses.filter(e => isPhonePeCategory(e.category)).length + incomes.filter(i => isPhonePeCategory(i.category)).length;
+
+  const cashExpenses = expenses
+    .filter(e => isCashCategory(e.category))
+    .reduce((sum, e) => sum + Number(e.amount), 0);
+  const cashIncomes = incomes
+    .filter(i => isCashCategory(i.category))
+    .reduce((sum, i) => sum + Number(i.amount), 0);
+  const cashBalance = cashIncomes - cashExpenses;
+  const cashCount = expenses.filter(e => isCashCategory(e.category)).length + incomes.filter(i => isCashCategory(i.category)).length;
+
   // Current Month calculations
   const now = new Date();
   const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -317,6 +345,95 @@ export const Dashboard: React.FC<DashboardProps> = ({
               Set weekly budget &rarr;
             </button>
           )}
+        </div>
+      </div>
+
+      {/* PhonePe vs Cash Separate Breakdown Section */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+              <span>PhonePe & Cash Separation</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                Separate Accounts
+              </span>
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Dedicated balances for PhonePe (UPI / Online) and Cash in Hand transactions
+            </p>
+          </div>
+          <button
+            onClick={() => onNavigateTab('transactions')}
+            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center space-x-1"
+          >
+            <span>View All Transactions &rarr;</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* 1. PhonePe Account Card */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-purple-50 via-purple-50/50 to-indigo-50/30 dark:from-purple-950/40 dark:via-purple-950/20 dark:to-slate-900 border border-purple-200 dark:border-purple-800/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-base shadow-sm">
+                  📱
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-purple-950 dark:text-purple-200">PhonePe Account</h4>
+                  <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">{phonePeCount} transactions</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">PhonePe Balance</span>
+                <span className={`text-xl font-black ${phonePeBalance >= 0 ? 'text-purple-700 dark:text-purple-300' : 'text-rose-600'}`}>
+                  {formatINR(phonePeBalance)}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-purple-200/50 dark:border-purple-800/40 text-xs">
+              <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-800/80 border border-purple-100 dark:border-purple-900/40">
+                <span className="text-[10px] text-slate-500 font-bold block uppercase">PhonePe Income</span>
+                <span className="font-black text-emerald-600 dark:text-emerald-400 text-sm">+{formatINR(phonePeIncomes)}</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-800/80 border border-purple-100 dark:border-purple-900/40">
+                <span className="text-[10px] text-slate-500 font-bold block uppercase">PhonePe Spent</span>
+                <span className="font-black text-rose-600 dark:text-rose-400 text-sm">-{formatINR(phonePeExpenses)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Cash Account Card */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 via-emerald-50/50 to-teal-50/30 dark:from-emerald-950/40 dark:via-emerald-950/20 dark:to-slate-900 border border-emerald-200 dark:border-emerald-800/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-base shadow-sm">
+                  💵
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-emerald-950 dark:text-emerald-200">Cash in Hand</h4>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">{cashCount} transactions</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Cash Balance</span>
+                <span className={`text-xl font-black ${cashBalance >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600'}`}>
+                  {formatINR(cashBalance)}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-emerald-200/50 dark:border-emerald-800/40 text-xs">
+              <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-800/80 border border-emerald-100 dark:border-emerald-900/40">
+                <span className="text-[10px] text-slate-500 font-bold block uppercase">Cash Income</span>
+                <span className="font-black text-emerald-600 dark:text-emerald-400 text-sm">+{formatINR(cashIncomes)}</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-white/90 dark:bg-slate-800/80 border border-emerald-100 dark:border-emerald-900/40">
+                <span className="text-[10px] text-slate-500 font-bold block uppercase">Cash Spent</span>
+                <span className="font-black text-rose-600 dark:text-rose-400 text-sm">-{formatINR(cashExpenses)}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

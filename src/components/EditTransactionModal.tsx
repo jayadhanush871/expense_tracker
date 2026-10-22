@@ -11,6 +11,8 @@ interface EditTransactionModalProps {
 }
 
 const CATEGORIES = [
+  'PhonePe',
+  'Cash',
   'Food & Drinks',
   'Transportation',
   'Shopping',

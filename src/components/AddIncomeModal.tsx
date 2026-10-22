@@ -91,6 +91,36 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Received Via (Category)
+              </label>
+              <div className="flex items-center space-x-2 mb-2">
+                <button
+                  type="button"
+                  onClick={() => setCategory('PhonePe')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 border ${
+                    category === 'PhonePe'
+                      ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                      : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-300'
+                  }`}
+                >
+                  <span>📱 PhonePe</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCategory('Cash')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 border ${
+                    category === 'Cash'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-300'
+                  }`}
+                >
+                  <span>💵 Cash</span>
+                </button>
+              </div>
+            </div>
+
             <div>
               <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Category
@@ -100,6 +130,8 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-900 dark:text-white"
               >
+                <option value="PhonePe">📱 PhonePe</option>
+                <option value="Cash">💵 Cash</option>
                 <option value="Salary">Salary</option>
                 <option value="Freelancing">Freelancing</option>
                 <option value="Investments">Investments</option>

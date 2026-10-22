@@ -38,11 +38,30 @@ export const Transactions: React.FC<TransactionsProps> = ({
   onOpenAddIncome
 }) => {
   const [filterType, setFilterType] = useState<'all' | 'expense' | 'income'>('all');
+  const [paymentModeFilter, setPaymentModeFilter] = useState<'all' | 'phonepe' | 'cash'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'>('date-desc');
+
+  // PhonePe vs Cash Helpers
+  const isPhonePeCategory = (cat: string) => {
+    const c = (cat || '').toLowerCase();
+    return c.includes('phonepe') || c.includes('phone pay') || c.includes('phonepay') || c.includes('upi') || c.includes('gpay') || c.includes('online');
+  };
+  const isCashCategory = (cat: string) => {
+    const c = (cat || '').toLowerCase();
+    return c.includes('cash') || c.includes('atm') || c.includes('hand');
+  };
+
+  const phonePeExpenses = expenses.filter(e => isPhonePeCategory(e.category)).reduce((sum, e) => sum + Number(e.amount), 0);
+  const phonePeIncomes = incomes.filter(i => isPhonePeCategory(i.category)).reduce((sum, i) => sum + Number(i.amount), 0);
+  const phonePeBalance = phonePeIncomes - phonePeExpenses;
+
+  const cashExpenses = expenses.filter(e => isCashCategory(e.category)).reduce((sum, e) => sum + Number(e.amount), 0);
+  const cashIncomes = incomes.filter(i => isCashCategory(i.category)).reduce((sum, i) => sum + Number(i.amount), 0);
+  const cashBalance = cashIncomes - cashExpenses;
 
   // Unified items
   const unifiedList = [
@@ -65,6 +84,8 @@ export const Transactions: React.FC<TransactionsProps> = ({
   // Filter items
   const filteredItems = unifiedList.filter(item => {
     if (filterType !== 'all' && item.type !== filterType) return false;
+    if (paymentModeFilter === 'phonepe' && !isPhonePeCategory(item.category)) return false;
+    if (paymentModeFilter === 'cash' && !isCashCategory(item.category)) return false;
     if (selectedCategory !== 'all' && item.category !== selectedCategory) return false;
     if (startDate && item.date < startDate) return false;
     if (endDate && item.date > endDate) return false;
@@ -196,8 +217,85 @@ export const Transactions: React.FC<TransactionsProps> = ({
         </div>
       </div>
 
+      {/* PhonePe & Cash Separate Summary Strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50/50 dark:from-purple-950/40 dark:to-slate-900 border border-purple-200 dark:border-purple-800/60 flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
+            <span className="text-xl">📱</span>
+            <div>
+              <span className="text-xs font-bold text-purple-900 dark:text-purple-200 block">PhonePe Account</span>
+              <span className="text-[11px] text-slate-500">
+                In: <strong className="text-emerald-600">+{formatINR(phonePeIncomes)}</strong> | Out: <strong className="text-rose-600">-{formatINR(phonePeExpenses)}</strong>
+              </span>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] uppercase font-bold text-slate-400 block">Balance</span>
+            <span className={`text-base font-black ${phonePeBalance >= 0 ? 'text-purple-700 dark:text-purple-300' : 'text-rose-600'}`}>
+              {formatINR(phonePeBalance)}
+            </span>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50/50 dark:from-emerald-950/40 dark:to-slate-900 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
+            <span className="text-xl">💵</span>
+            <div>
+              <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 block">Cash in Hand</span>
+              <span className="text-[11px] text-slate-500">
+                In: <strong className="text-emerald-600">+{formatINR(cashIncomes)}</strong> | Out: <strong className="text-rose-600">-{formatINR(cashExpenses)}</strong>
+              </span>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] uppercase font-bold text-slate-400 block">Balance</span>
+            <span className={`text-base font-black ${cashBalance >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600'}`}>
+              {formatINR(cashBalance)}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Filter and Search Bar */}
       <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        {/* Quick Mode Filter Pills */}
+        <div className="flex flex-wrap items-center gap-2 pb-1 border-b border-slate-100 dark:border-slate-800">
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Account:</span>
+          <button
+            type="button"
+            onClick={() => setPaymentModeFilter('all')}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+              paymentModeFilter === 'all'
+                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+            }`}
+          >
+            All Accounts
+          </button>
+          <button
+            type="button"
+            onClick={() => setPaymentModeFilter('phonepe')}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center space-x-1 ${
+              paymentModeFilter === 'phonepe'
+                ? 'bg-purple-600 text-white shadow-sm'
+                : 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 hover:bg-purple-100'
+            }`}
+          >
+            <span>📱 PhonePe Only</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setPaymentModeFilter('cash')}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center space-x-1 ${
+              paymentModeFilter === 'cash'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100'
+            }`}
+          >
+            <span>💵 Cash Only</span>
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
           {/* Search box */}
           <div className="sm:col-span-5 relative">
@@ -330,9 +428,19 @@ export const Transactions: React.FC<TransactionsProps> = ({
                       </span>
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap">
-                      <span className="font-medium text-slate-800 dark:text-slate-200">
-                        {item.category}
-                      </span>
+                      {isPhonePeCategory(item.category) ? (
+                        <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                          <span>📱 PhonePe</span>
+                        </span>
+                      ) : isCashCategory(item.category) ? (
+                        <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                          <span>💵 Cash</span>
+                        </span>
+                      ) : (
+                        <span className="font-medium text-slate-800 dark:text-slate-200 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[11px]">
+                          {item.category}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4">
                       <div className="font-semibold text-slate-900 dark:text-white max-w-xs truncate">

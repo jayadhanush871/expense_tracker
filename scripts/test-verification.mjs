@@ -116,6 +116,65 @@ async function runTests() {
       category_budgets: { 'Food & Drinks': 4000 }
     });
 
+    // TEST 4C: PhonePe and Cash Category Separation
+    console.log('\n--- TEST SUITE 4C: PHONEPE & CASH CATEGORIES SEPARATION ---');
+    assert(detectCategory('Grocery paid via PhonePe') === 'PhonePe', 'Auto-detects PhonePe category from description');
+    assert(detectCategory('Paid auto fare in Cash') === 'Cash', 'Auto-detects Cash category from description');
+
+    // Add PhonePe & Cash expenses
+    const expPhonePe = await db.addExpense({
+      user_email: 'dhanush@example.com',
+      amount: 120,
+      description: 'Supermarket shopping',
+      category: 'PhonePe',
+      date: '2026-10-22',
+      time: '14:00:00'
+    });
+    const expCash = await db.addExpense({
+      user_email: 'dhanush@example.com',
+      amount: 60,
+      description: 'Street vegetable cart',
+      category: 'Cash',
+      date: '2026-10-22',
+      time: '14:30:00'
+    });
+
+    // Add PhonePe & Cash incomes
+    const incPhonePe = await db.addIncome({
+      user_email: 'dhanush@example.com',
+      amount: 5000,
+      source: 'Freelance UPI Credit',
+      category: 'PhonePe',
+      date: '2026-10-22'
+    });
+    const incCash = await db.addIncome({
+      user_email: 'dhanush@example.com',
+      amount: 1000,
+      source: 'Cash from ATM / Friend',
+      category: 'Cash',
+      date: '2026-10-22'
+    });
+
+    // Verify separate calculations
+    const allExp = await db.getExpenses('dhanush@example.com');
+    const allInc = await db.getIncomes('dhanush@example.com');
+
+    const pExp = allExp.filter(e => e.category.toLowerCase().includes('phonepe')).reduce((s, e) => s + Number(e.amount), 0);
+    const pInc = allInc.filter(i => i.category.toLowerCase().includes('phonepe')).reduce((s, i) => s + Number(i.amount), 0);
+    const pBal = pInc - pExp;
+
+    const cExp = allExp.filter(e => e.category.toLowerCase().includes('cash')).reduce((s, e) => s + Number(e.amount), 0);
+    const cInc = allInc.filter(i => i.category.toLowerCase().includes('cash')).reduce((s, i) => s + Number(i.amount), 0);
+    const cBal = cInc - cExp;
+
+    assert(pExp === 120, `PhonePe expenses tracked separately: ₹${pExp}`);
+    assert(pInc === 5000, `PhonePe incomes tracked separately: ₹${pInc}`);
+    assert(pBal === 4880, `PhonePe balance tracked separately: ₹${pBal}`);
+
+    assert(cExp === 60, `Cash expenses tracked separately: ₹${cExp}`);
+    assert(cInc === 1000, `Cash incomes tracked separately: ₹${cInc}`);
+    assert(cBal === 940, `Cash balance tracked separately: ₹${cBal}`);
+
     // TEST 5: Generate Weekly Report from Saved Database Records
     console.log('\n--- TEST SUITE 5: WEEKLY FINANCIAL REPORT CALCULATION ---');
     const summary = await calculateWeeklyFinancialSummary('dhanush@example.com');
