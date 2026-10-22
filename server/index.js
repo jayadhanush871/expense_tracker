@@ -119,6 +119,23 @@ app.post('/api/profile', async (req, res) => {
       email: email.trim()
     });
 
+    // Sync profile submission to Formspree for cloud form storage and email notification
+    try {
+      const formspreeUrl = process.env.FORMSPREE_URL || 'https://formspree.io/f/moejgbov';
+      fetch(formspreeUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          form_type: 'Profile Setup',
+          full_name: full_name.trim(),
+          email: email.trim(),
+          _replyto: email.trim(),
+          _subject: `Profile Configured: ${full_name.trim()}`,
+          message: `User ${full_name.trim()} configured their profile with email address ${email.trim()}.`
+        })
+      }).catch(err => console.warn('Formspree profile submission notice:', err.message));
+    } catch (e) {}
+
     res.json({ success: true, profile: saved });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -464,13 +481,16 @@ app.get('*', (req, res, next) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`\n======================================================`);
-  console.log(`🚀 EXPENSE TRACKER BACKEND RUNNING ON PORT ${PORT}`);
-  console.log(`📡 API Base: http://localhost:${PORT}/api`);
-  console.log(`======================================================`);
+// Start server if run directly
+const isDirectRun = process.argv[1] && (process.argv[1].endsWith('index.js') || process.argv[1].endsWith('server'));
+if (isDirectRun || process.env.RUN_SERVER === 'true') {
+  app.listen(PORT, () => {
+    console.log(`\n======================================================`);
+    console.log(`🚀 EXPENSE TRACKER BACKEND RUNNING ON PORT ${PORT}`);
+    console.log(`📡 API Base: http://localhost:${PORT}/api`);
+    console.log(`======================================================`);
 
-  // Start internal background scheduler
-  initScheduler();
-});
+    // Start internal background scheduler
+    initScheduler();
+  });
+}

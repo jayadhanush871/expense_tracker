@@ -3,6 +3,7 @@ import {
   calculateWeeklyFinancialSummary,
   sendWeeklyReportEmail,
   sendTestVerificationEmail,
+  sendViaFormspree,
   generateEmailHtml,
   generateEmailText
 } from '../server/resend-service.js';
@@ -27,8 +28,17 @@ async function runTests() {
   }
 
   try {
+    // TEST 0: Confirm Initial Zero State
+    console.log('--- TEST SUITE 0: INITIAL ZERO EXPENSES STATE ---');
+    const initialExpenses = await db.getExpenses('newuser@example.com');
+    const initialSummary = await calculateWeeklyFinancialSummary('newuser@example.com');
+    assert(initialExpenses.length === 0, 'Starting expenses list is 0 records');
+    assert(initialSummary.totalExpenses === 0, 'Starting total expenses is ₹0');
+    assert(initialSummary.transactionCount === 0, 'Starting transaction count is 0');
+    assert(initialSummary.factualSummary.includes('zero expenses'), 'Summary correctly states zero expenses recorded');
+
     // TEST 1: Profile Creation with ONLY Full Name and Email Address
-    console.log('--- TEST SUITE 1: SIMPLE PROFILE CREATION ---');
+    console.log('\n--- TEST SUITE 1: SIMPLE PROFILE CREATION ---');
     const profileData = {
       full_name: 'Dhanush',
       email: 'dhanush@example.com'
@@ -62,12 +72,13 @@ async function runTests() {
     assert(expense.date === autoDate, `System automatically captured date: ${expense.date}`);
     assert(expense.time !== undefined && expense.time.length > 0, `System automatically captured time: ${expense.time}`);
 
-    // TEST 3: Confirm Persistent Storage
-    console.log('\n--- TEST SUITE 3: PERSISTENT STORAGE CONFIRMATION ---');
+    // TEST 3: Confirm Persistent Storage and Started Calculations
+    console.log('\n--- TEST SUITE 3: CALCULATIONS BEGAN AFTER ADDING EXPENSE ---');
     const allExpenses = await db.getExpenses('dhanush@example.com');
     const found = allExpenses.find(e => e.id === expense.id);
     assert(found !== undefined, 'Expense found in database store');
     assert(found.amount === 40, 'Persisted amount is exactly ₹40');
+    assert(allExpenses.length >= 1, `Calculations active: ${allExpenses.length} expense(s) tracked`);
 
     // TEST 4: Budget Settings (Weekly, Monthly, Category)
     console.log('\n--- TEST SUITE 4: BUDGET SETTINGS & THRESHOLDS ---');
@@ -109,9 +120,14 @@ async function runTests() {
     assert(textEmail.includes('Total weekly expenses:'), 'Plain-text Email includes total weekly expenses');
     assert(textEmail.includes('Weekly budget:'), 'Plain-text Email includes weekly budget');
 
-    // TEST 7: Duplicate Prevention Check
-    console.log('\n--- TEST SUITE 7: EMAIL DISPATCH & DUPLICATE PREVENTION ---');
-    // Save report settings
+    // TEST 7: Formspree Real Email Delivery to https://formspree.io/f/moejgbov
+    console.log('\n--- TEST SUITE 7: FORMSPREE REAL EMAIL DELIVERY & FORM STORAGE ---');
+    const formspreeDelivery = await sendViaFormspree(summary, 'dhanush@example.com');
+    assert(formspreeDelivery.success === true, 'Formspree accepted report submission and queued real email delivery');
+    assert(formspreeDelivery.service === 'Formspree', 'Service confirmed as Formspree (https://formspree.io/f/moejgbov)');
+
+    // TEST 8: Duplicate Prevention & Scheduled Dispatch
+    console.log('\n--- TEST SUITE 8: DUPLICATE PREVENTION & AUDIT LOGGING ---');
     await db.saveReportSettings('dhanush@example.com', {
       is_active: true,
       delivery_day: 'Sunday',
@@ -123,7 +139,7 @@ async function runTests() {
     const duplicateCheck = await sendWeeklyReportEmail({ force: false, targetEmail: 'dhanush@example.com' });
     assert(duplicateCheck.skipped === true, 'Duplicate report for the same period was successfully skipped');
 
-    // Reset last_sent_period to test send failure logging (when RESEND_API_KEY is not set)
+    // Reset last_sent_period to test send with force
     await db.saveReportSettings('dhanush@example.com', {
       is_active: true,
       delivery_day: 'Sunday',
@@ -133,20 +149,12 @@ async function runTests() {
     });
 
     const sendAttempt = await sendWeeklyReportEmail({ force: true, targetEmail: 'dhanush@example.com' });
-    assert(sendAttempt.setup_required === true || sendAttempt.success === true, 'Handled credentials status accurately (setup_required or success)');
+    assert(sendAttempt.success === true, 'sendWeeklyReportEmail dispatched report successfully via Formspree');
 
     // Verify Audit Logs
     const logs = await db.getEmailLogs('dhanush@example.com');
     assert(logs.length > 0, `Delivery attempt audit log recorded in database (Total logs: ${logs.length})`);
     assert(logs[0].recipient === 'dhanush@example.com', `Logged recipient is dhanush@example.com`);
-
-    // TEST 8: Zero spending handling
-    console.log('\n--- TEST SUITE 8: ZERO SPENDING HANDLING ---');
-    // Future date with no transactions
-    const zeroSummary = await calculateWeeklyFinancialSummary('nonexistent@example.com', '2030-01-07');
-    assert(zeroSummary.totalExpenses === 0, 'Zero expenses calculated for week with no transactions');
-    assert(zeroSummary.transactionCount === 0, 'Zero transactions recorded');
-    assert(zeroSummary.factualSummary.includes('zero expenses'), 'Factual summary notes zero spending without inventing transactions');
 
     console.log('\n====================================================');
     console.log(`TEST RESULTS: ${passed} PASSED, ${failed} FAILED`);

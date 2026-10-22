@@ -438,7 +438,52 @@ export function generateEmailText(summary) {
   return text;
 }
 
-// Dispatch report via Resend with duplicate check & audit logging
+// Formspree Integration for Form Data Storage & Email Delivery
+export async function sendViaFormspree(summary, targetEmail) {
+  const formspreeUrl = process.env.FORMSPREE_URL || 'https://formspree.io/f/moejgbov';
+
+  const payload = {
+    form_type: 'Weekly Expense and Budget Report',
+    recipient_email: targetEmail || summary.recipientEmail,
+    user_name: summary.userName,
+    email: targetEmail || summary.recipientEmail,
+    _replyto: targetEmail || summary.recipientEmail,
+    _subject: `Your Weekly Expense and Budget Report (${summary.periodStart} to ${summary.periodEnd})`,
+    reporting_period: `${summary.periodStart} to ${summary.periodEnd}`,
+    total_expenses: formatINR(summary.totalExpenses),
+    weekly_budget: summary.isBudgetSet ? formatINR(summary.weeklyBudget) : 'Not Configured',
+    remaining_budget: summary.isBudgetSet ? formatINR(summary.remainingBudget) : 'N/A',
+    budget_utilization_percent: summary.isBudgetSet ? `${summary.budgetUtilizedPct.toFixed(1)}%` : 'N/A',
+    number_of_transactions: summary.transactionCount,
+    highest_expense: summary.highestExpense
+      ? `${formatINR(summary.highestExpense.amount)} (${summary.highestExpense.description} - ${summary.highestExpense.category})`
+      : 'None',
+    average_daily_spending: formatINR(summary.averageDailySpending),
+    category_breakdown: summary.categoryBreakdown.map(c => `${c.category}: ${formatINR(c.amount)} (${c.percentage.toFixed(1)}%)`).join(' | ') || 'None',
+    daily_breakdown: summary.dailyBreakdown.map(d => `${d.day} (${d.date}): ${formatINR(d.total)}`).join(' | '),
+    factual_spending_summary: summary.factualSummary,
+    report_text_summary: generateEmailText(summary)
+  };
+
+  const response = await fetch(formspreeUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.error || `Formspree submission failed (HTTP ${response.status})`);
+  }
+
+  const data = await response.json();
+  return { success: true, service: 'Formspree', data };
+}
+
+// Dispatch report via Formspree & Resend with duplicate check & audit logging
 export async function sendWeeklyReportEmail({ force = false, targetEmail = null } = {}) {
   const profile = await db.getProfile();
   const userEmail = targetEmail || profile?.email;
@@ -460,47 +505,29 @@ export async function sendWeeklyReportEmail({ force = false, targetEmail = null 
     };
   }
 
-  const resend = getResendClient();
-  const sender = process.env.SENDER_EMAIL || 'Expense Tracker <onboarding@resend.dev>';
-  const subject = `Your Weekly Expense and Budget Report (${summary.periodStart} - ${summary.periodEnd})`;
-
-  if (!resend) {
-    const errorMsg = 'RESEND_API_KEY is not configured or invalid in .env. Setup required before email can be dispatched.';
-    // Log failure
-    await db.addEmailLog({
-      user_email: userEmail,
-      recipient: userEmail,
-      period_start: summary.periodStart,
-      period_end: summary.periodEnd,
-      status: 'FAILED',
-      total_expense: summary.totalExpenses,
-      total_income: summary.totalIncome,
-      transactions_count: summary.transactionCount,
-      error_message: errorMsg
-    });
-
-    return {
-      success: false,
-      setup_required: true,
-      error: errorMsg,
-      summary
-    };
-  }
-
   try {
-    const html = generateEmailHtml(summary);
-    const text = generateEmailText(summary);
+    // 1. Deliver and store via Formspree
+    const formspreeResult = await sendViaFormspree(summary, userEmail);
 
-    const result = await resend.emails.send({
-      from: sender,
-      to: [userEmail],
-      subject: subject,
-      html: html,
-      text: text
-    });
+    // 2. Also send via Resend if credentials are configured
+    const resend = getResendClient();
+    if (resend) {
+      try {
+        const sender = process.env.SENDER_EMAIL || 'Expense Tracker <onboarding@resend.dev>';
+        const subject = `Your Weekly Expense and Budget Report (${summary.periodStart} - ${summary.periodEnd})`;
+        const html = generateEmailHtml(summary);
+        const text = generateEmailText(summary);
 
-    if (result.error) {
-      throw new Error(result.error.message || 'Resend API returned an error.');
+        await resend.emails.send({
+          from: sender,
+          to: [userEmail],
+          subject: subject,
+          html: html,
+          text: text
+        });
+      } catch (resendErr) {
+        console.warn('Optional Resend delivery notice (Formspree succeeded):', resendErr.message);
+      }
     }
 
     // Update last_sent_period in settings to prevent duplicates
@@ -524,7 +551,7 @@ export async function sendWeeklyReportEmail({ force = false, targetEmail = null 
 
     return {
       success: true,
-      data: result.data,
+      service: 'Formspree',
       recipient: userEmail,
       periodKey: summary.periodKey,
       summary
@@ -553,56 +580,46 @@ export async function sendWeeklyReportEmail({ force = false, targetEmail = null 
   }
 }
 
-// Send instant test verification email
+// Send instant test verification email via Formspree
 export async function sendTestVerificationEmail(targetEmail) {
   const profile = await db.getProfile();
-  const recipient = targetEmail || profile?.email;
+  const recipient = targetEmail || profile?.email || 'user@example.com';
   const name = profile?.full_name || 'User';
-
-  if (!recipient) {
-    throw new Error('No recipient email specified or configured in profile.');
-  }
-
-  const resend = getResendClient();
-  const sender = process.env.SENDER_EMAIL || 'Expense Tracker <onboarding@resend.dev>';
-
-  if (!resend) {
-    return {
-      success: false,
-      setup_required: true,
-      error: 'RESEND_API_KEY is not configured in .env. Please configure your Resend API key first.'
-    };
-  }
-
-  const html = `
-    <div style="font-family: sans-serif; max-width: 500px; margin: 20px auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
-      <h2 style="color: #4f46e5; margin-top: 0;">Connection Verified!</h2>
-      <p>Hello <strong>${name}</strong>,</p>
-      <p>This is a test email confirming that your <strong>Personal Expense Tracker</strong> email delivery service (Resend) is successfully connected and functioning!</p>
-      <div style="background: #f1f5f9; padding: 12px; border-radius: 8px; font-size: 13px; margin: 16px 0;">
-        <strong>Recipient:</strong> ${recipient}<br/>
-        <strong>Sender:</strong> ${sender}<br/>
-        <strong>Timestamp:</strong> ${new Date().toLocaleString()}
-      </div>
-      <p style="color: #64748b; font-size: 13px;">Your weekly expense and budget reports will be automatically delivered to this address according to your schedule.</p>
-    </div>
-  `;
+  const formspreeUrl = process.env.FORMSPREE_URL || 'https://formspree.io/f/moejgbov';
 
   try {
-    const result = await resend.emails.send({
-      from: sender,
-      to: [recipient],
-      subject: 'Expense Tracker - Email Delivery Test Successful',
-      html: html,
-      text: `Hello ${name}, your email delivery connection is working successfully!`
+    const payload = {
+      form_type: 'Email Delivery Test',
+      user_name: name,
+      recipient_email: recipient,
+      email: recipient,
+      _replyto: recipient,
+      _subject: 'Expense Tracker - Email Verification Test',
+      message: `Hello ${name}, this test confirms that Formspree email delivery and form data storage (${formspreeUrl}) is functioning properly!`,
+      timestamp: new Date().toISOString()
+    };
+
+    const res = await fetch(formspreeUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(payload)
     });
 
-    if (result.error) {
-      throw new Error(result.error.message);
+    if (!res.ok) {
+      throw new Error(`Formspree test submission failed with HTTP status ${res.status}`);
     }
 
-    return { success: true, data: result.data };
+    return {
+      success: true,
+      service: 'Formspree',
+      recipient,
+      message: `Verification test email dispatched to ${recipient} via Formspree!`
+    };
   } catch (err) {
     return { success: false, error: err.message };
   }
 }
+

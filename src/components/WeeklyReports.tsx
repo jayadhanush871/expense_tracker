@@ -76,6 +76,13 @@ export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
+  const [recipientInput, setRecipientInput] = useState(profile?.email || '');
+
+  useEffect(() => {
+    if (profile?.email && !recipientInput) {
+      setRecipientInput(profile.email);
+    }
+  }, [profile]);
 
   useEffect(() => {
     setIsActive(reportSettings.is_active);
@@ -130,19 +137,25 @@ export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
   };
 
   const handleSendWeeklyReport = async (force = false) => {
+    const target = recipientInput.trim() || profile?.email;
+    if (!target) {
+      alert('Please enter or confirm the recipient email address first.');
+      return;
+    }
+
     try {
       setIsSendingReport(true);
       setSendResult(null);
-      const res = await api.sendWeeklyReport({ force, email: profile?.email });
+      const res = await api.sendWeeklyReport({ force, email: target });
       if (res.skipped) {
         setSendResult({
           success: true,
-          message: res.message || 'Report already dispatched for this period. To re-send, click retry in the logs.'
+          message: res.message || 'Report already dispatched for this period. To re-send, click Force Re-send.'
         });
       } else if (res.success) {
         setSendResult({
           success: true,
-          message: `Weekly report successfully delivered to ${profile?.email}!`
+          message: `Weekly report successfully dispatched to ${target} via Formspree!`
         });
       } else {
         setSendResult({
@@ -162,19 +175,25 @@ export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
   };
 
   const handleSendTestEmail = async () => {
+    const target = recipientInput.trim() || profile?.email;
+    if (!target) {
+      alert('Please enter or confirm the recipient email address first.');
+      return;
+    }
+
     try {
       setIsSendingTest(true);
       setTestResult(null);
-      const res = await api.sendTestEmail(profile?.email);
+      const res = await api.sendTestEmail(target);
       if (res.success) {
         setTestResult({
           success: true,
-          message: `Verification test email sent to ${profile?.email}! Check your inbox.`
+          message: `Verification test email dispatched to ${target} via Formspree! Check your inbox.`
         });
       } else {
         setTestResult({
           success: false,
-          message: res.error || 'Test email failed. Ensure RESEND_API_KEY is configured in .env.'
+          message: res.error || 'Test email failed.'
         });
       }
     } catch (err: any) {
@@ -197,7 +216,7 @@ export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
     }
   };
 
-  const isResendReady = status?.resend_configured;
+  const isEmailServiceReady = status?.formspree_configured || status?.resend_configured;
 
   return (
     <div className="space-y-8">
@@ -208,38 +227,38 @@ export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
           <span>Weekly Financial Email Reports & Delivery Engine</span>
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-          Calculates comprehensive weekly summaries and dispatches formatted emails to your saved profile address.
+          Calculates comprehensive weekly summaries and dispatches formatted reports to your email via Formspree.
         </p>
       </div>
 
       {/* 1. Email Service Status & Credentials Card */}
       <div className={`p-5 rounded-2xl border transition-all ${
-        isResendReady
+        isEmailServiceReady
           ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'
           : 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
       }`}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-start space-x-3">
             <div className={`p-2 rounded-xl mt-0.5 ${
-              isResendReady
+              isEmailServiceReady
                 ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300'
                 : 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300'
             }`}>
-              {isResendReady ? <ShieldCheck className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
+              {isEmailServiceReady ? <ShieldCheck className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                   Email Service Status:{' '}
-                  <span className={isResendReady ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}>
-                    {isResendReady ? 'Resend Connected & Active' : 'Setup Required'}
+                  <span className={isEmailServiceReady ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}>
+                    {isEmailServiceReady ? 'Formspree Connected & Active' : 'Setup Required'}
                   </span>
                 </h3>
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                {isResendReady
-                  ? `Authenticated with Resend. Sending from "${status?.sender_email || 'onboarding@resend.dev'}".`
-                  : 'RESEND_API_KEY is not configured in .env. Real email delivery is paused until an API key is provided.'}
+                {isEmailServiceReady
+                  ? `Active Formspree endpoint: "https://formspree.io/f/moejgbov". Ready to store form data and deliver weekly reports!`
+                  : 'Email endpoint is not configured.'}
               </p>
             </div>
           </div>
@@ -249,7 +268,7 @@ export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
               onClick={() => setShowSetupGuide(!showSetupGuide)}
               className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors flex items-center space-x-1"
             >
-              <span>{showSetupGuide ? 'Hide Setup Steps' : 'Setup Guide'}</span>
+              <span>{showSetupGuide ? 'Hide Details' : 'Formspree Details'}</span>
               {showSetupGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
             <button
@@ -262,30 +281,18 @@ export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
           </div>
         </div>
 
-        {/* Collapsible Setup Instructions */}
+        {/* Formspree Endpoint Details */}
         {showSetupGuide && (
-          <div className="mt-4 pt-4 border-t border-amber-200/60 dark:border-amber-800/60 space-y-3 text-xs text-slate-700 dark:text-slate-300">
+          <div className="mt-4 pt-4 border-t border-emerald-200/60 dark:border-emerald-800/60 space-y-2 text-xs text-slate-700 dark:text-slate-300">
             <div className="font-bold text-slate-900 dark:text-white">
-              To activate real email delivery with Resend:
+              Form Data Storage & Email Delivery:
             </div>
-            <ol className="list-decimal list-inside space-y-1.5 pl-1 leading-relaxed">
-              <li>
-                Visit <a href="https://resend.com" target="_blank" rel="noreferrer" className="text-indigo-600 dark:text-indigo-400 font-semibold underline inline-flex items-center space-x-0.5"><span>resend.com</span><ExternalLink className="w-3 h-3 ml-0.5" /></a> and sign up for a free account.
-              </li>
-              <li>
-                Create an API Key under <strong>API Keys</strong> tab (starts with <code className="bg-white/80 dark:bg-slate-800 px-1 py-0.5 rounded">re_</code>).
-              </li>
-              <li>
-                Open the project file <code className="bg-white/80 dark:bg-slate-800 px-1 py-0.5 rounded">.env</code> in your editor and paste:
-                <pre className="mt-1 p-2 rounded-lg bg-slate-900 text-emerald-400 font-mono text-[11px] overflow-x-auto">
-RESEND_API_KEY=re_your_api_key_here
-SENDER_EMAIL=Expense Tracker &lt;onboarding@resend.dev&gt;
-                </pre>
-              </li>
-              <li>
-                Restart or refresh the server, then click <strong>"Send Test Verification Email"</strong> below!
-              </li>
-            </ol>
+            <p>
+              Your application is configured with the Formspree endpoint <code className="bg-white/80 dark:bg-slate-800 px-1 py-0.5 rounded font-mono text-indigo-600 dark:text-indigo-400 font-bold">https://formspree.io/f/moejgbov</code>.
+            </p>
+            <p>
+              Every time you submit a profile update or dispatch a weekly report, the structured financial data is stored securely in Formspree and delivered immediately as an email to the configured inbox!
+            </p>
           </div>
         )}
       </div>
@@ -412,6 +419,34 @@ SENDER_EMAIL=Expense Tracker &lt;onboarding@resend.dev&gt;
             </p>
           </div>
 
+          {/* Ask User for Recipient Email */}
+          <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-1.5">
+            <label className="block text-xs font-bold text-indigo-950 dark:text-indigo-200">
+              Recipient Email (Ask / Confirm):
+            </label>
+            <p className="text-[11px] text-slate-600 dark:text-slate-400">
+              Enter or confirm the email address to receive this report:
+            </p>
+            <div className="flex items-center space-x-2">
+              <input
+                type="email"
+                value={recipientInput}
+                onChange={(e) => setRecipientInput(e.target.value)}
+                placeholder="e.g. dhanush@example.com"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {profile?.email && recipientInput !== profile.email && (
+                <button
+                  type="button"
+                  onClick={() => setRecipientInput(profile.email)}
+                  className="px-2 py-1 text-[11px] font-semibold text-indigo-600 hover:underline whitespace-nowrap"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Action 1: Send Weekly Report Now */}
           <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-2">
             <div className="flex items-center justify-between">
@@ -420,7 +455,7 @@ SENDER_EMAIL=Expense Tracker &lt;onboarding@resend.dev&gt;
                   Send Weekly Financial Report Now
                 </span>
                 <span className="text-[11px] text-slate-500">
-                  Calculates past 7-day totals and sends to {profile?.email}
+                  Calculates past 7-day totals and sends to {recipientInput || profile?.email || 'recipient'}
                 </span>
               </div>
             </div>

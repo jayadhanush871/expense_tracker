@@ -1,62 +1,11 @@
 {
   "profile": {
-    "full_name": "Dhanush",
-    "email": "dhanush@example.com",
-    "updated_at": "2026-10-22T06:23:03.578Z"
+    "full_name": "",
+    "email": "",
+    "updated_at": "2026-10-22T12:00:00.000Z"
   },
-  "expenses": [
-    {
-      "id": "exp-1792650183580-s7zzs",
-      "user_email": "dhanush@example.com",
-      "amount": 40,
-      "description": "Tea and snacks",
-      "category": "Food & Drinks",
-      "date": "2026-10-22",
-      "time": "11:53:03",
-      "created_at": "2026-10-22T06:23:03.580Z"
-    },
-    {
-      "id": "exp-1",
-      "user_email": "dhanush@example.com",
-      "amount": 40,
-      "description": "Tea and snacks",
-      "category": "Food & Drinks",
-      "date": "2026-10-22",
-      "time": "10:30:00",
-      "created_at": "2026-10-22T04:22:55.488Z"
-    },
-    {
-      "id": "exp-2",
-      "user_email": "dhanush@example.com",
-      "amount": 180,
-      "description": "Metro card recharge",
-      "category": "Transportation",
-      "date": "2026-10-22",
-      "time": "08:45:00",
-      "created_at": "2026-10-22T01:22:55.488Z"
-    },
-    {
-      "id": "exp-3",
-      "user_email": "dhanush@example.com",
-      "amount": 450,
-      "description": "Grocery shopping",
-      "category": "Shopping",
-      "date": "2026-10-21",
-      "time": "18:15:00",
-      "created_at": "2026-10-21T06:22:55.488Z"
-    }
-  ],
-  "incomes": [
-    {
-      "id": "inc-1",
-      "user_email": "dhanush@example.com",
-      "amount": 25000,
-      "source": "Monthly Salary",
-      "category": "Salary",
-      "date": "2026-10-17",
-      "created_at": "2026-10-17T06:22:55.488Z"
-    }
-  ],
+  "expenses": [],
+  "incomes": [],
   "budgets": {
     "weekly_budget": 2000,
     "monthly_budget": 15000,
@@ -64,40 +13,16 @@
       "Food & Drinks": 4000,
       "Transportation": 2000
     },
-    "updated_at": "2026-10-22T06:23:03.585Z"
+    "updated_at": "2026-10-22T12:00:00.000Z"
   },
-  "savings_goals": [
-    {
-      "id": "goal-1",
-      "user_email": "dhanush@example.com",
-      "title": "Emergency Fund",
-      "target_amount": 50000,
-      "saved_amount": 15000,
-      "target_date": "2026-12-31",
-      "created_at": "2026-10-22T06:22:55.488Z"
-    }
-  ],
+  "savings_goals": [],
   "report_settings": {
     "is_active": true,
     "delivery_day": "Sunday",
     "delivery_time": "09:00",
     "timezone": "Asia/Kolkata",
     "last_sent_period": null,
-    "updated_at": "2026-10-22T06:23:03.635Z"
+    "updated_at": "2026-10-22T12:00:00.000Z"
   },
-  "email_logs": [
-    {
-      "id": "log-1792650183649",
-      "user_email": "dhanush@example.com",
-      "recipient": "dhanush@example.com",
-      "period_start": "2026-10-16",
-      "period_end": "2026-10-22",
-      "status": "FAILED",
-      "total_expense": 710,
-      "total_income": 25000,
-      "transactions_count": 4,
-      "error_message": "RESEND_API_KEY is not configured or invalid in .env. Setup required before email can be dispatched.",
-      "sent_at": "2026-10-22T06:23:03.649Z"
-    }
-  ]
+  "email_logs": []
 }

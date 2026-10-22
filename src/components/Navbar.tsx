@@ -87,21 +87,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right Action Items */}
           <div className="flex items-center space-x-2 sm:space-x-3">
-            {/* Resend Service Indicator */}
+            {/* Email Service Indicator (Formspree / Resend) */}
             {status && (
               <div
                 onClick={() => setActiveTab('reports')}
-                title={status.resend_configured ? 'Resend Email: Configured' : 'Resend Email: Setup Required'}
+                title={status.formspree_configured ? 'Formspree Email Service Connected' : status.resend_configured ? 'Resend Email: Configured' : 'Email: Setup Required'}
                 className={`hidden lg:flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer border transition-colors ${
-                  status.resend_configured
+                  status.formspree_configured || status.resend_configured
                     ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
                     : 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
                 }`}
               >
-                {status.resend_configured ? (
+                {status.formspree_configured || status.resend_configured ? (
                   <>
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Email Active</span>
+                    <span>Email Ready ({status.formspree_configured ? 'Formspree' : 'Resend'})</span>
                   </>
                 ) : (
                   <>

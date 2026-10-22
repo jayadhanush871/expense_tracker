@@ -33,56 +33,15 @@ if (isSupabaseConfigured) {
   console.log('ℹ️ Supabase credentials not set. Running with local persistent file storage (server/data/store.json).');
 }
 
-// Default in-memory & file store structure
+// Default in-memory & file store structure with 0 initial expenses
 const defaultStore = {
   profile: {
-    full_name: 'Dhanush',
-    email: 'dhanush@example.com',
+    full_name: '',
+    email: '',
     updated_at: new Date().toISOString()
   },
-  expenses: [
-    {
-      id: 'exp-1',
-      user_email: 'dhanush@example.com',
-      amount: 40,
-      description: 'Tea and snacks',
-      category: 'Food & Drinks',
-      date: new Date().toISOString().split('T')[0],
-      time: '10:30:00',
-      created_at: new Date(Date.now() - 3600000 * 2).toISOString()
-    },
-    {
-      id: 'exp-2',
-      user_email: 'dhanush@example.com',
-      amount: 180,
-      description: 'Metro card recharge',
-      category: 'Transportation',
-      date: new Date().toISOString().split('T')[0],
-      time: '08:45:00',
-      created_at: new Date(Date.now() - 3600000 * 5).toISOString()
-    },
-    {
-      id: 'exp-3',
-      user_email: 'dhanush@example.com',
-      amount: 450,
-      description: 'Grocery shopping',
-      category: 'Shopping',
-      date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
-      time: '18:15:00',
-      created_at: new Date(Date.now() - 86400000).toISOString()
-    }
-  ],
-  incomes: [
-    {
-      id: 'inc-1',
-      user_email: 'dhanush@example.com',
-      amount: 25000,
-      source: 'Monthly Salary',
-      category: 'Salary',
-      date: new Date(Date.now() - 86400000 * 5).toISOString().split('T')[0],
-      created_at: new Date(Date.now() - 86400000 * 5).toISOString()
-    }
-  ],
+  expenses: [],
+  incomes: [],
   budgets: {
     weekly_budget: 2000,
     monthly_budget: 15000,
@@ -95,17 +54,7 @@ const defaultStore = {
     },
     updated_at: new Date().toISOString()
   },
-  savings_goals: [
-    {
-      id: 'goal-1',
-      user_email: 'dhanush@example.com',
-      title: 'Emergency Fund',
-      target_amount: 50000,
-      saved_amount: 15000,
-      target_date: '2026-12-31',
-      created_at: new Date().toISOString()
-    }
-  ],
+  savings_goals: [],
   report_settings: {
     is_active: true,
     delivery_day: 'Sunday',
@@ -148,6 +97,8 @@ export const db = {
       supabase_configured: isSupabaseConfigured,
       supabase_url: isSupabaseConfigured ? supabaseUrl : null,
       resend_configured: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.startsWith('re_')),
+      formspree_configured: true,
+      formspree_url: process.env.FORMSPREE_URL || 'https://formspree.io/f/moejgbov',
       sender_email: process.env.SENDER_EMAIL || 'Expense Tracker <onboarding@resend.dev>'
     };
   },

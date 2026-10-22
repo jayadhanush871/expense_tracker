@@ -1,12 +1,20 @@
 # 💰 Personal Expense Tracker with Automated Weekly Email Reports & Persistent Storage
 
-A modern, full-featured Personal Expense Tracker built with **React 18, TypeScript, Tailwind CSS, Express, Resend, and Supabase / Local Persistent Storage**.
+A modern, full-featured Personal Expense Tracker built with **React 18, TypeScript, Tailwind CSS, Express, Formspree (https://formspree.io/f/moejgbov), Resend, and Supabase / Local Persistent Storage**.
 
 ---
 
-## 🌟 Key Features
+## 🌟 Key Updates & Specifications
 
-### 1. 👤 Simple Profile Creation & Management
+### 1. 📧 Formspree Form Data Storage & Real Email Delivery
+- **Connected Endpoint**: `https://formspree.io/f/moejgbov`
+- **Instant Cloud Form Storage**: Profile updates and weekly reports are submitted directly to Formspree for immediate form storage and email delivery.
+- **Ask User for Email**: When dispatching weekly financial reports or verification tests, the app directly prompts and asks the user to confirm/enter the target recipient email address.
+- **Zero Configuration Required**: Functions immediately out-of-the-box using the active Formspree endpoint with zero setup hurdles!
+
+### 2. 0️⃣ Initial Expenses Start at ₹0
+- **Clean Starting State**: When starting the application, expenses are initialized strictly at **₹0** across **0 transactions**.
+- **Calculations Trigger on Addition**: Financial metrics, budget utilization %, daily averages, and category distributions only start calculating after you add an expense using the quick-add form!
 - **Minimalist & Secure**: Exactly two fields — **Full Name** and **Email Address**.
 - **No Unnecessary Clutter**: Never asks for phone numbers, profile photos, addresses, date of birth, or occupation.
 - **Dynamic Usage**: Your saved name powers personalized dashboard greetings (`"Good morning, Dhanush!"`) and weekly email greetings (`"Hello Dhanush,"`).

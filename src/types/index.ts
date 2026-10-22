@@ -108,8 +108,9 @@ export interface SystemStatus {
   status: string;
   storage_type: 'supabase' | 'local_storage';
   supabase_configured: boolean;
-  supabase_url: string | null;
   resend_configured: boolean;
+  formspree_configured?: boolean;
+  formspree_url?: string;
   sender_email: string;
   scheduler: {
     is_running: boolean;
