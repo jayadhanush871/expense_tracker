@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { db } from '../server/db.js';
 import {
   calculateWeeklyFinancialSummary,
@@ -8,6 +11,9 @@ import {
   generateEmailText
 } from '../server/resend-service.js';
 import { detectCategory } from '../server/index.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 console.log('====================================================');
 console.log('🧪 RUNNING COMPREHENSIVE EXPENSE TRACKER VERIFICATION');
@@ -94,6 +100,22 @@ async function runTests() {
     assert(savedBudgets.weekly_budget === 2000, 'Weekly budget set to ₹2,000');
     assert(savedBudgets.monthly_budget === 15000, 'Monthly budget set to ₹15,000');
 
+    // TEST 4B: Change Weekly Budget (Custom amount, not 2000)
+    console.log('\n--- TEST SUITE 4B: CHANGE WEEKLY BUDGET TO CUSTOM VALUE ---');
+    const changedBudgets = await db.saveBudgets('dhanush@example.com', {
+      weekly_budget: 3500,
+      monthly_budget: 15000,
+      category_budgets: { 'Food & Drinks': 4000 }
+    });
+    assert(changedBudgets.weekly_budget === 3500, 'Weekly budget changed successfully to ₹3,500 (not stuck at 2000)');
+
+    // Reset back to 2000 for Suite 5 comparison
+    await db.saveBudgets('dhanush@example.com', {
+      weekly_budget: 2000,
+      monthly_budget: 15000,
+      category_budgets: { 'Food & Drinks': 4000 }
+    });
+
     // TEST 5: Generate Weekly Report from Saved Database Records
     console.log('\n--- TEST SUITE 5: WEEKLY FINANCIAL REPORT CALCULATION ---');
     const summary = await calculateWeeklyFinancialSummary('dhanush@example.com');
@@ -108,17 +130,19 @@ async function runTests() {
     assert(summary.dailyBreakdown.length === 7, 'Daily breakdown contains all 7 days of the week');
     assert(summary.factualSummary.length > 0, `Factual spending overview generated: "${summary.factualSummary}"`);
 
-    // TEST 6: HTML & Plain-Text Email Generation
+    // TEST 6: HTML & Plain-Text Email Generation (Strict Minimal Format)
     console.log('\n--- TEST SUITE 6: EMAIL CONTENT & FORMATTING ---');
     const htmlEmail = generateEmailHtml(summary);
     const textEmail = generateEmailText(summary);
 
-    assert(htmlEmail.includes('Hello Dhanush'), 'HTML Email includes personalized greeting');
-    assert(htmlEmail.includes('Weekly Financial Summary'), 'HTML Email includes report title');
-    assert(htmlEmail.includes('Category Breakdown'), 'HTML Email includes Category Breakdown');
-    assert(htmlEmail.includes('Daily Spending Breakdown'), 'HTML Email includes Daily Breakdown');
-    assert(textEmail.includes('Total weekly expenses:'), 'Plain-text Email includes total weekly expenses');
-    assert(textEmail.includes('Weekly budget:'), 'Plain-text Email includes weekly budget');
+    assert(htmlEmail.includes('<th>date</th>') && htmlEmail.includes('<th>amount</th>') && htmlEmail.includes('<th>spent on</th>') && htmlEmail.includes('<th>category</th>'), 'HTML Email includes exact table headers: date, amount, spent on, category');
+    assert(htmlEmail.includes('total spent:'), 'HTML Email includes total spent:');
+    assert(htmlEmail.includes('balance:'), 'HTML Email includes balance:');
+    assert(!htmlEmail.includes('Hello Dhanush'), 'HTML Email omits extraneous greetings as requested');
+    assert(!htmlEmail.includes('Category Breakdown'), 'HTML Email omits extraneous category breakdown chart');
+    assert(textEmail.includes('date') && textEmail.includes('amount') && textEmail.includes('spent on') && textEmail.includes('category'), 'Plain-text Email includes table headers');
+    assert(textEmail.includes('total spent:'), 'Plain-text Email includes total spent:');
+    assert(textEmail.includes('balance:'), 'Plain-text Email includes balance:');
 
     // TEST 7: Formspree Real Email Delivery to https://formspree.io/f/moejgbov
     console.log('\n--- TEST SUITE 7: FORMSPREE REAL EMAIL DELIVERY & FORM STORAGE ---');
@@ -128,10 +152,14 @@ async function runTests() {
 
     // TEST 8: Duplicate Prevention & Scheduled Dispatch
     console.log('\n--- TEST SUITE 8: DUPLICATE PREVENTION & AUDIT LOGGING ---');
+    const defaultSettings = await db.getReportSettings('dhanush@example.com');
+    assert(defaultSettings.delivery_day === 'Sunday', 'Default scheduled delivery day is Sunday');
+    assert(defaultSettings.delivery_time === '00:00', 'Default scheduled delivery time is 00:00 (12:00 AM midnight)');
+
     await db.saveReportSettings('dhanush@example.com', {
       is_active: true,
       delivery_day: 'Sunday',
-      delivery_time: '09:00',
+      delivery_time: '00:00',
       timezone: 'Asia/Kolkata',
       last_sent_period: summary.periodKey // simulate already sent
     });
@@ -143,7 +171,7 @@ async function runTests() {
     await db.saveReportSettings('dhanush@example.com', {
       is_active: true,
       delivery_day: 'Sunday',
-      delivery_time: '09:00',
+      delivery_time: '00:00',
       timezone: 'Asia/Kolkata',
       last_sent_period: null
     });
@@ -155,6 +183,33 @@ async function runTests() {
     const logs = await db.getEmailLogs('dhanush@example.com');
     assert(logs.length > 0, `Delivery attempt audit log recorded in database (Total logs: ${logs.length})`);
     assert(logs[0].recipient === 'dhanush@example.com', `Logged recipient is dhanush@example.com`);
+
+    // Reset only test transactions and logs so expenses start at 0, while keeping profile & budget
+    const storeP = path.join(__dirname, '..', 'server', 'data', 'store.json');
+    const existingStore = fs.existsSync(storeP) ? JSON.parse(fs.readFileSync(storeP, 'utf-8')) : {};
+    const cleanStore = {
+      profile: existingStore.profile?.email ? existingStore.profile : { full_name: '', email: '', updated_at: new Date().toISOString() },
+      expenses: [],
+      incomes: [],
+      budgets: existingStore.budgets || {
+        weekly_budget: null,
+        monthly_budget: null,
+        category_budgets: {},
+        updated_at: new Date().toISOString()
+      },
+      savings_goals: [],
+      report_settings: {
+        is_active: true,
+        delivery_day: 'Sunday',
+        delivery_time: '00:00',
+        timezone: 'Asia/Kolkata',
+        last_sent_period: null,
+        updated_at: new Date().toISOString()
+      },
+      email_logs: []
+    };
+    fs.writeFileSync(storeP, JSON.stringify(cleanStore, null, 2), 'utf-8');
+    console.log('\n🧹 Database reset: transactions cleared (0 expenses), profile & budget preserved.');
 
     console.log('\n====================================================');
     console.log(`TEST RESULTS: ${passed} PASSED, ${failed} FAILED`);

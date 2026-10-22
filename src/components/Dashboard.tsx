@@ -39,6 +39,7 @@ interface DashboardProps {
   onEditExpense: (expense: Expense) => void;
   onDeleteExpense: (id: string) => Promise<void>;
   onNavigateTab: (tab: string) => void;
+  onOpenChangeBudget?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -50,7 +51,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onAddExpense,
   onEditExpense,
   onDeleteExpense,
-  onNavigateTab
+  onNavigateTab,
+  onOpenChangeBudget
 }) => {
   const userName = profile?.full_name || 'Friend';
 
@@ -249,15 +251,27 @@ export const Dashboard: React.FC<DashboardProps> = ({
         }`}>
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Weekly Budget</span>
-            {weeklyWarning ? (
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${weeklyWarning.color}`}>
-                {weeklyWarning.label}
-              </span>
-            ) : (
-              <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
-                <PiggyBank className="w-4 h-4" />
-              </div>
-            )}
+            <div className="flex items-center space-x-1.5">
+              {weeklyWarning && (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${weeklyWarning.color}`}>
+                  {weeklyWarning.label}
+                </span>
+              )}
+              {onOpenChangeBudget && (
+                <button
+                  type="button"
+                  onClick={onOpenChangeBudget}
+                  className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 transition-colors"
+                >
+                  Change
+                </button>
+              )}
+              {!weeklyWarning && (
+                <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
+                  <PiggyBank className="w-3.5 h-3.5" />
+                </div>
+              )}
+            </div>
           </div>
           <div className="text-2xl font-black text-slate-900 dark:text-white">
             {isWeeklyBudgetSet ? formatINR(weeklyBudget) : 'Not Configured'}
@@ -282,10 +296,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   style={{ width: `${Math.min(100, weeklyUtilizedPct)}%` }}
                 />
               </div>
+              <div className="pt-1 flex items-center justify-between text-[11px]">
+                <span className="text-slate-500">{weeklyUtilizedPct.toFixed(1)}% utilized</span>
+                {onOpenChangeBudget && (
+                  <button
+                    type="button"
+                    onClick={onOpenChangeBudget}
+                    className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center space-x-1"
+                  >
+                    <span>Edit budget &rarr;</span>
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <button
-              onClick={() => onNavigateTab('budgets')}
+              onClick={onOpenChangeBudget || (() => onNavigateTab('budgets'))}
               className="mt-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
             >
               Set weekly budget &rarr;

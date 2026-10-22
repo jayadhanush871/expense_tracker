@@ -357,11 +357,28 @@ export const Budgets: React.FC<BudgetsProps> = ({
                 min="0"
                 value={weeklyBudgetInput}
                 onChange={(e) => setWeeklyBudgetInput(e.target.value)}
-                placeholder="e.g. 2000 (leave blank for unset)"
+                placeholder="Enter amount (e.g. 1500, 3000, 5000)"
                 className="w-full pl-8 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">Calculated and reported in your weekly email report.</p>
+            {/* Quick Presets */}
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {[1000, 1500, 2500, 3000, 5000, 7500, 10000].map((amt) => (
+                <button
+                  key={amt}
+                  type="button"
+                  onClick={() => setWeeklyBudgetInput(String(amt))}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold border transition-all ${
+                    weeklyBudgetInput === String(amt)
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  ₹{amt.toLocaleString('en-IN')}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1.5">Powers your automated weekly email report & dashboard progress.</p>
           </div>
 
           <div>

@@ -58,7 +58,7 @@ const defaultStore = {
   report_settings: {
     is_active: true,
     delivery_day: 'Sunday',
-    delivery_time: '09:00',
+    delivery_time: '00:00',
     timezone: 'Asia/Kolkata',
     last_sent_period: null,
     updated_at: new Date().toISOString()

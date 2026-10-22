@@ -159,211 +159,64 @@ export async function calculateWeeklyFinancialSummary(userEmail, endDateStr = nu
 // Generate responsive HTML email
 export function generateEmailHtml(summary) {
   const {
-    userName,
-    periodStart,
-    periodEnd,
-    totalExpenses,
-    totalIncome,
-    netCashFlow,
-    weeklyBudget,
+    expenses = [],
+    totalExpenses = 0,
     isBudgetSet,
     remainingBudget,
-    budgetUtilizedPct,
-    transactionCount,
-    highestExpense,
-    averageDailySpending,
-    dailyBreakdown,
-    categoryBreakdown,
-    prevTotalExpenses,
-    spendingChangePct,
-    factualSummary
+    netCashFlow
   } = summary;
 
-  const budgetColor = budgetUtilizedPct > 100 ? '#ef4444' : budgetUtilizedPct > 80 ? '#f59e0b' : '#10b981';
+  const balance = isBudgetSet
+    ? formatINR(remainingBudget)
+    : formatINR(netCashFlow || 0);
 
   return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Your Weekly Expense and Budget Report</title>
+  <title>Weekly Expense Report</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 0; }
-    .container { max-width: 620px; margin: 24px auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
-    .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 28px; text-align: left; color: #ffffff; }
-    .header h1 { margin: 0 0 6px 0; font-size: 24px; font-weight: 700; }
-    .header p { margin: 0; font-size: 14px; opacity: 0.9; }
-    .content { padding: 28px; }
-    .greeting { font-size: 18px; font-weight: 600; color: #0f172a; margin-bottom: 8px; }
-    .subtext { font-size: 14px; color: #64748b; margin-bottom: 24px; line-height: 1.5; }
-    .summary-box { background: #f1f5f9; border-left: 4px solid #4f46e5; padding: 14px 18px; border-radius: 8px; font-size: 14px; color: #334155; line-height: 1.6; margin-bottom: 24px; }
-    .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
-    .metric-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; }
-    .metric-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 4px; }
-    .metric-value { font-size: 22px; font-weight: 700; color: #0f172a; }
-    .metric-sub { font-size: 12px; color: #64748b; margin-top: 4px; }
-    .section-title { font-size: 16px; font-weight: 700; color: #0f172a; margin: 24px 0 12px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 13px; }
-    th { text-align: left; padding: 8px 10px; background: #f8fafc; color: #475569; font-weight: 600; border-bottom: 1px solid #e2e8f0; }
-    td { padding: 10px; border-bottom: 1px solid #f1f5f9; color: #334155; }
-    .amount { font-family: 'Courier New', Courier, monospace; font-weight: 600; text-align: right; }
-    .progress-bar-bg { background: #e2e8f0; border-radius: 999px; height: 8px; overflow: hidden; margin-top: 6px; }
-    .progress-bar-fill { height: 100%; border-radius: 999px; }
-    .footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 28px; text-align: center; font-size: 12px; color: #94a3b8; }
-    .badge { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-    .badge-green { background: #dcfce7; color: #15803d; }
-    .badge-red { background: #fee2e2; color: #b91c1c; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #ffffff; color: #1e293b; margin: 0; padding: 24px; }
+    .card { max-width: 650px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 14px; }
+    th { text-align: left; padding: 10px 12px; background: #f8fafc; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; border-bottom: 2px solid #e2e8f0; }
+    td { padding: 12px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+    .amount { font-weight: 700; color: #0f172a; }
+    .summary-box { border-top: 2px solid #e2e8f0; padding-top: 16px; margin-top: 8px; font-size: 15px; }
+    .summary-line { margin: 8px 0; font-size: 15px; color: #0f172a; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>Weekly Financial Summary</h1>
-      <p>Reporting Period: ${periodStart} to ${periodEnd}</p>
-    </div>
-
-    <div class="content">
-      <div class="greeting">Hello ${userName},</div>
-      <div class="subtext">Here is your automated weekly expense and budget report for the past 7 days.</div>
-
-      <div class="summary-box">
-        <strong>Factual Overview:</strong><br/>
-        ${factualSummary}
-      </div>
-
-      <!-- KPI Metrics -->
-      <table style="width: 100%; margin-bottom: 20px;">
+  <div class="card">
+    <table>
+      <thead>
         <tr>
-          <td style="width: 50%; padding: 6px; border: none;">
-            <div class="metric-card">
-              <div class="metric-title">Total Weekly Expenses</div>
-              <div class="metric-value" style="color: #4f46e5;">${formatINR(totalExpenses)}</div>
-              <div class="metric-sub">${transactionCount} transaction${transactionCount === 1 ? '' : 's'} recorded</div>
-            </div>
-          </td>
-          <td style="width: 50%; padding: 6px; border: none;">
-            <div class="metric-card">
-              <div class="metric-title">Weekly Budget</div>
-              <div class="metric-value">${isBudgetSet ? formatINR(weeklyBudget) : 'Not Set'}</div>
-              <div class="metric-sub">
-                ${isBudgetSet ? `Remaining: <strong style="color: ${remainingBudget >= 0 ? '#10b981' : '#ef4444'}">${formatINR(remainingBudget)}</strong>` : 'Configure in Budget settings'}
-              </div>
-            </div>
-          </td>
+          <th>date</th>
+          <th>amount</th>
+          <th>spent on</th>
+          <th>category</th>
         </tr>
-        <tr>
-          <td style="width: 50%; padding: 6px; border: none;">
-            <div class="metric-card">
-              <div class="metric-title">Budget Utilized</div>
-              <div class="metric-value" style="color: ${budgetColor};">${isBudgetSet ? budgetUtilizedPct.toFixed(1) + '%' : 'N/A'}</div>
-              <div class="progress-bar-bg">
-                <div class="progress-bar-fill" style="width: ${Math.min(100, budgetUtilizedPct)}%; background: ${budgetColor};"></div>
-              </div>
-            </div>
-          </td>
-          <td style="width: 50%; padding: 6px; border: none;">
-            <div class="metric-card">
-              <div class="metric-title">Average Daily Spending</div>
-              <div class="metric-value">${formatINR(averageDailySpending)}</div>
-              <div class="metric-sub">Over 7 active days</div>
-            </div>
-          </td>
-        </tr>
-      </table>
-
-      ${totalIncome > 0 ? `
-      <!-- Cash flow summary if income recorded -->
-      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 14px 18px; margin-bottom: 24px;">
-        <table style="width: 100%; border: none; margin: 0;">
+      </thead>
+      <tbody>
+        ${expenses && expenses.length > 0 ? expenses.map(e => `
           <tr>
-            <td style="border: none; padding: 4px;"><strong>Recorded Income:</strong> ${formatINR(totalIncome)}</td>
-            <td style="border: none; padding: 4px;"><strong>Expenses:</strong> ${formatINR(totalExpenses)}</td>
-            <td style="border: none; padding: 4px; text-align: right;"><strong>Net Cash Flow:</strong> <span style="color: ${netCashFlow >= 0 ? '#15803d' : '#b91c1c'}; font-weight: 700;">${formatINR(netCashFlow)}</span></td>
+            <td>${e.date || ''}</td>
+            <td class="amount">${formatINR(e.amount)}</td>
+            <td>${e.description || ''}</td>
+            <td>${e.category || 'Other'}</td>
           </tr>
-        </table>
-      </div>
-      ` : ''}
-
-      <!-- Highest Expense Highlight -->
-      ${highestExpense ? `
-      <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 14px 18px; margin-bottom: 24px;">
-        <span style="font-size: 12px; font-weight: 600; color: #b45309; text-transform: uppercase;">Highest Expense This Week</span>
-        <div style="font-size: 16px; font-weight: 700; color: #92400e; margin-top: 4px;">
-          ${formatINR(highestExpense.amount)} &bull; ${highestExpense.description}
-          <span style="font-size: 12px; font-weight: normal; color: #b45309;">(${highestExpense.category} on ${highestExpense.date})</span>
-        </div>
-      </div>
-      ` : ''}
-
-      <!-- Category Breakdown -->
-      <div class="section-title">Category Breakdown</div>
-      ${categoryBreakdown.length > 0 ? `
-      <table>
-        <thead>
+        `).join('') : `
           <tr>
-            <th>Category</th>
-            <th style="text-align: right;">Amount</th>
-            <th style="text-align: right;">Share</th>
+            <td colspan="4" style="text-align: center; color: #94a3b8; padding: 16px;">No expenses recorded</td>
           </tr>
-        </thead>
-        <tbody>
-          ${categoryBreakdown.map(cat => `
-            <tr>
-              <td><strong>${cat.category}</strong></td>
-              <td class="amount">${formatINR(cat.amount)}</td>
-              <td style="text-align: right; color: #64748b;">${cat.percentage.toFixed(1)}%</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-      ` : `<p style="font-size: 13px; color: #94a3b8; font-style: italic;">No expenses recorded across categories.</p>`}
+        `}
+      </tbody>
+    </table>
 
-      <!-- Daily Spending Breakdown -->
-      <div class="section-title">Daily Spending Breakdown</div>
-      <table>
-        <thead>
-          <tr>
-            <th>Day</th>
-            <th>Date</th>
-            <th style="text-align: right;">Total Spent</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${dailyBreakdown.map(day => `
-            <tr>
-              <td><strong>${day.day}</strong></td>
-              <td style="color: #64748b;">${day.date}</td>
-              <td class="amount">${formatINR(day.total)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-
-      <!-- Comparison with Previous Week -->
-      <div class="section-title">Comparison With Previous Week</div>
-      <table style="margin-bottom: 8px;">
-        <tr>
-          <td>Previous Week Spending:</td>
-          <td class="amount">${formatINR(prevTotalExpenses)}</td>
-        </tr>
-        <tr>
-          <td>This Week Spending:</td>
-          <td class="amount">${formatINR(totalExpenses)}</td>
-        </tr>
-        <tr>
-          <td>Change:</td>
-          <td class="amount" style="color: ${spendingChangePct > 0 ? '#ef4444' : '#10b981'};">
-            ${spendingChangePct > 0 ? '+' : ''}${spendingChangePct.toFixed(1)}% (${formatINR(Math.abs(totalExpenses - prevTotalExpenses))} ${spendingChangePct > 0 ? 'more' : 'less'})
-          </td>
-        </tr>
-      </table>
-
-    </div>
-
-    <div class="footer">
-      <p>This automated financial report was generated for <strong>${userName}</strong> (${summary.recipientEmail}).</p>
-      <p>Personal Expense Tracker &bull; Secure Data Storage &bull; Resend Email Engine</p>
+    <div class="summary-box">
+      <div class="summary-line"><strong>total spent:</strong> ${formatINR(totalExpenses)}</div>
+      <div class="summary-line"><strong>balance:</strong> ${balance}</div>
     </div>
   </div>
 </body>
@@ -373,119 +226,63 @@ export function generateEmailHtml(summary) {
 
 // Generate Plain Text Version
 export function generateEmailText(summary) {
-  const {
-    userName,
-    periodStart,
-    periodEnd,
-    totalExpenses,
-    totalIncome,
-    netCashFlow,
-    weeklyBudget,
-    isBudgetSet,
-    remainingBudget,
-    budgetUtilizedPct,
-    transactionCount,
-    highestExpense,
-    averageDailySpending,
-    dailyBreakdown,
-    categoryBreakdown,
-    prevTotalExpenses,
-    spendingChangePct,
-    factualSummary
-  } = summary;
+  const { expenses = [], totalExpenses = 0, isBudgetSet, remainingBudget, netCashFlow } = summary;
+  const balance = isBudgetSet ? formatINR(remainingBudget) : formatINR(netCashFlow || 0);
 
-  let text = `Subject: Your Weekly Expense and Budget Report\n\n`;
-  text += `Hello ${userName},\n\n`;
-  text += `Here is your weekly financial summary for ${periodStart} to ${periodEnd}.\n\n`;
-  text += `Summary:\n${factualSummary}\n\n`;
-  text += `Total weekly expenses: ${formatINR(totalExpenses)}\n`;
-  if (isBudgetSet) {
-    text += `Weekly budget: ${formatINR(weeklyBudget)}\n`;
-    text += `Budget remaining: ${formatINR(remainingBudget)}\n`;
-    text += `Budget utilized: ${budgetUtilizedPct.toFixed(1)}%\n`;
+  let tableRows = '';
+  if (expenses && expenses.length > 0) {
+    tableRows = expenses
+      .map(e => `${(e.date || '').padEnd(12)} ${formatINR(e.amount).padEnd(12)} ${(e.description || '').padEnd(24)} ${e.category || 'Other'}`)
+      .join('\n');
   } else {
-    text += `Weekly budget: Not configured\n`;
-  }
-  text += `Number of transactions: ${transactionCount}\n`;
-  text += `Average daily spending: ${formatINR(averageDailySpending)}\n`;
-  if (totalIncome > 0) {
-    text += `Total weekly income: ${formatINR(totalIncome)}\n`;
-    text += `Net cash flow: ${formatINR(netCashFlow)}\n`;
-  }
-  if (highestExpense) {
-    text += `Highest expense: ${formatINR(highestExpense.amount)} (${highestExpense.description} - ${highestExpense.category})\n`;
+    tableRows = 'No expenses recorded';
   }
 
-  text += `\nCategory breakdown:\n`;
-  if (categoryBreakdown.length > 0) {
-    categoryBreakdown.forEach(cat => {
-      text += `- ${cat.category}: ${formatINR(cat.amount)} (${cat.percentage.toFixed(1)}%)\n`;
-    });
-  } else {
-    text += `None\n`;
-  }
-
-  text += `\nDaily breakdown:\n`;
-  dailyBreakdown.forEach(d => {
-    text += `- ${d.day} (${d.date}): ${formatINR(d.total)}\n`;
-  });
-
-  text += `\nComparison with previous week:\n`;
-  text += `- Previous week: ${formatINR(prevTotalExpenses)}\n`;
-  text += `- This week: ${formatINR(totalExpenses)}\n`;
-  text += `- Change: ${spendingChangePct > 0 ? '+' : ''}${spendingChangePct.toFixed(1)}%\n\n`;
-  text += `Personal Expense Tracker\n`;
-
-  return text;
+  return [
+    `date         amount      spent on                 category`,
+    `----------------------------------------------------------------------`,
+    tableRows,
+    ``,
+    `total spent: ${formatINR(totalExpenses)}`,
+    `balance: ${balance}`
+  ].join('\n');
 }
 
 // Formspree Integration for Form Data Storage & Email Delivery
-// Sends ONLY: Week from date to to date, how much amount spent, for what is spent, remaining balance, and that week spent amount.
+// Sends ONLY: date, amount, spent on, category, followed by total spent and balance. Nothing extra.
 export async function sendViaFormspree(summary, targetEmail) {
   const formspreeUrl = process.env.FORMSPREE_URL || 'https://formspree.io/f/moejgbov';
 
-  // Format "for what is spent"
-  let forWhatSpent = 'No expenses recorded this week';
-  if (summary.expenses && summary.expenses.length > 0) {
-    forWhatSpent = summary.expenses
-      .map(e => `${e.description} (${e.category}): ${formatINR(e.amount)}`)
-      .join('\n');
-  } else if (summary.categoryBreakdown && summary.categoryBreakdown.length > 0) {
-    forWhatSpent = summary.categoryBreakdown
-      .map(c => `${c.category}: ${formatINR(c.amount)}`)
-      .join('\n');
-  }
-
-  // Calculate remaining balance (from budget or cash flow)
-  const remainingBalance = summary.isBudgetSet
+  const balance = summary.isBudgetSet
     ? formatINR(summary.remainingBudget)
     : formatINR(summary.netCashFlow || 0);
+
+  let tableRows = '';
+  if (summary.expenses && summary.expenses.length > 0) {
+    tableRows = summary.expenses
+      .map(e => `${(e.date || '').padEnd(12)} ${formatINR(e.amount).padEnd(12)} ${(e.description || '').padEnd(24)} ${e.category || 'Other'}`)
+      .join('\n');
+  } else {
+    tableRows = 'No expenses recorded';
+  }
+
+  const messageText = [
+    `date         amount      spent on                 category`,
+    `----------------------------------------------------------------------`,
+    tableRows,
+    ``,
+    `total spent: ${formatINR(summary.totalExpenses)}`,
+    `balance: ${balance}`
+  ].join('\n');
 
   const payload = {
     email: targetEmail || summary.recipientEmail,
     _replyto: targetEmail || summary.recipientEmail,
-    _subject: `Weekly Expense Report: ${summary.periodStart} to ${summary.periodEnd}`,
-    
-    // Requested exact fields:
-    Week_From_Date: summary.periodStart,
-    Week_To_Date: summary.periodEnd,
-    How_Much_Amount_Spent: formatINR(summary.totalExpenses),
-    That_Week_Spent_Amount: formatINR(summary.totalExpenses),
-    For_What_It_Was_Spent: forWhatSpent,
-    Remaining_Balance: remainingBalance,
-
-    // Concise clean message
-    message: [
-      `WEEKLY EXPENSE REPORT`,
-      `------------------------------------------`,
-      `Week: ${summary.periodStart} to ${summary.periodEnd}`,
-      `That Week Spent Amount: ${formatINR(summary.totalExpenses)}`,
-      `Remaining Balance: ${remainingBalance}`,
-      `------------------------------------------`,
-      `For What Was Spent:`,
-      forWhatSpent,
-      `------------------------------------------`
-    ].join('\n')
+    _subject: `Weekly Expense Report`,
+    date_amount_spent_on_category: tableRows,
+    total_spent: formatINR(summary.totalExpenses),
+    balance: balance,
+    message: messageText
   };
 
   const response = await fetch(formspreeUrl, {

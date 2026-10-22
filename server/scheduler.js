@@ -17,12 +17,13 @@ function getCurrentTimeInZone(timeZone) {
       weekday: 'long',
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false
+      hourCycle: 'h23'
     });
 
     const parts = formatter.formatToParts(now);
     const day = parts.find(p => p.type === 'weekday')?.value || dayNames[now.getDay()];
-    const hour = parts.find(p => p.type === 'hour')?.value || '00';
+    let hour = parts.find(p => p.type === 'hour')?.value || '00';
+    if (hour === '24') hour = '00';
     const minute = parts.find(p => p.type === 'minute')?.value || '00';
 
     return {
@@ -67,7 +68,7 @@ export function initScheduler() {
       const { day, time } = getCurrentTimeInZone(userZone);
 
       const targetDay = settings.delivery_day || 'Sunday';
-      const targetTime = settings.delivery_time || '09:00';
+      const targetTime = settings.delivery_time || '00:00';
 
       // Compare day and time
       if (day.toLowerCase() === targetDay.toLowerCase() && time === targetTime) {

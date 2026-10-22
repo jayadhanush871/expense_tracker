@@ -1,8 +1,8 @@
 {
   "profile": {
-    "full_name": "",
-    "email": "",
-    "updated_at": "2026-10-22T12:00:00.000Z"
+    "full_name": "Dhanush",
+    "email": "dhanush@example.com",
+    "updated_at": "2026-10-22T07:41:42.515Z"
   },
   "expenses": [],
   "incomes": [],
@@ -10,19 +10,18 @@
     "weekly_budget": 2000,
     "monthly_budget": 15000,
     "category_budgets": {
-      "Food & Drinks": 4000,
-      "Transportation": 2000
+      "Food & Drinks": 4000
     },
-    "updated_at": "2026-10-22T12:00:00.000Z"
+    "updated_at": "2026-10-22T07:41:42.523Z"
   },
   "savings_goals": [],
   "report_settings": {
     "is_active": true,
     "delivery_day": "Sunday",
-    "delivery_time": "09:00",
+    "delivery_time": "00:00",
     "timezone": "Asia/Kolkata",
     "last_sent_period": null,
-    "updated_at": "2026-10-22T12:00:00.000Z"
+    "updated_at": "2026-10-22T07:41:44.415Z"
   },
   "email_logs": []
 }

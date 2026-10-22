@@ -12,6 +12,7 @@ import { WeeklyReports } from './components/WeeklyReports';
 import { ProfileModal } from './components/ProfileModal';
 import { EditTransactionModal } from './components/EditTransactionModal';
 import { AddIncomeModal } from './components/AddIncomeModal';
+import { ChangeWeeklyBudgetModal } from './components/ChangeWeeklyBudgetModal';
 
 import {
   Profile,
@@ -27,19 +28,37 @@ import { Database, ShieldAlert, Sparkles, CheckCircle2 } from 'lucide-react';
 
 export function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(() => {
+    try {
+      const cached = localStorage.getItem('expense_tracker_profile');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [incomes, setIncomes] = useState<Income[]>([]);
-  const [budgets, setBudgets] = useState<BudgetSettings>({
-    weekly_budget: null,
-    monthly_budget: null,
-    category_budgets: {}
+  const [budgets, setBudgets] = useState<BudgetSettings>(() => {
+    try {
+      const cached = localStorage.getItem('expense_tracker_budgets');
+      return cached ? JSON.parse(cached) : {
+        weekly_budget: null,
+        monthly_budget: null,
+        category_budgets: {}
+      };
+    } catch {
+      return {
+        weekly_budget: null,
+        monthly_budget: null,
+        category_budgets: {}
+      };
+    }
   });
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [reportSettings, setReportSettings] = useState<WeeklyReportSettings>({
     is_active: true,
     delivery_day: 'Sunday',
-    delivery_time: '09:00',
+    delivery_time: '00:00',
     timezone: 'Asia/Kolkata',
     last_sent_period: null
   });
@@ -47,6 +66,7 @@ export function App() {
 
   // Modals & Controls
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isChangeWeeklyBudgetOpen, setIsChangeWeeklyBudgetOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -89,23 +109,54 @@ export function App() {
         api.getReportSettings().catch(() => ({
           is_active: true,
           delivery_day: 'Sunday',
-          delivery_time: '09:00',
+          delivery_time: '00:00',
           timezone: 'Asia/Kolkata',
           last_sent_period: null
         }))
       ]);
 
       if (sysStatus) setStatus(sysStatus);
-      if (prof) setProfile(prof);
+
+      // Profile persistence: prefer server, fallback to localStorage
+      if (prof && prof.email) {
+        setProfile(prof);
+        try {
+          localStorage.setItem('expense_tracker_profile', JSON.stringify(prof));
+          localStorage.setItem('expense_tracker_account_created', 'true');
+        } catch {}
+      } else {
+        try {
+          const cached = localStorage.getItem('expense_tracker_profile');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && parsed.email) {
+              setProfile(parsed);
+              api.saveProfile(parsed).catch(() => {});
+            }
+          }
+        } catch {}
+      }
+
       setExpenses(expList);
       setIncomes(incList);
-      setBudgets(budg);
+
+      // Budgets persistence: prefer server, fallback to localStorage
+      if (budg && (budg.weekly_budget !== null || budg.monthly_budget !== null)) {
+        setBudgets(budg);
+        try {
+          localStorage.setItem('expense_tracker_budgets', JSON.stringify(budg));
+        } catch {}
+      }
+
       setGoals(gList);
       setReportSettings(repSet);
 
-      // If no profile name exists, prompt user to set profile
-      if (!prof || !prof.full_name) {
+      // Once account is created, NEVER prompt again on restart/reload
+      const hasAccount = localStorage.getItem('expense_tracker_account_created') === 'true' || Boolean(prof?.email);
+      if (!hasAccount) {
         setIsProfileModalOpen(true);
+      } else {
+        setIsProfileModalOpen(false);
       }
     } catch (err) {
       console.error('Initialization error:', err);
@@ -173,6 +224,17 @@ export function App() {
   const handleSaveBudgets = async (newBudgets: BudgetSettings) => {
     const saved = await api.saveBudgets(newBudgets);
     setBudgets(saved);
+    try {
+      localStorage.setItem('expense_tracker_budgets', JSON.stringify(saved));
+    } catch {}
+  };
+
+  const handleSaveWeeklyBudget = async (newWeeklyBudget: number | null) => {
+    const updated: BudgetSettings = {
+      ...budgets,
+      weekly_budget: newWeeklyBudget
+    };
+    await handleSaveBudgets(updated);
   };
 
   const handleAddGoal = async (data: any) => {
@@ -197,9 +259,12 @@ export function App() {
 
   const handleSaveProfile = async (data: { full_name: string; email: string }) => {
     const res = await api.saveProfile(data);
-    if (res.profile) {
-      setProfile(res.profile);
-    }
+    const updated = res.profile || { full_name: data.full_name, email: data.email, updated_at: new Date().toISOString() };
+    setProfile(updated);
+    try {
+      localStorage.setItem('expense_tracker_profile', JSON.stringify(updated));
+      localStorage.setItem('expense_tracker_account_created', 'true');
+    } catch {}
   };
 
   return (
@@ -265,6 +330,7 @@ export function App() {
             onEditExpense={handleEditExpense}
             onDeleteExpense={handleDeleteExpense}
             onNavigateTab={setActiveTab}
+            onOpenChangeBudget={() => setIsChangeWeeklyBudgetOpen(true)}
           />
         )}
 
@@ -317,10 +383,12 @@ export function App() {
         {activeTab === 'reports' && (
           <WeeklyReports
             profile={profile}
+            budgets={budgets}
             reportSettings={reportSettings}
             status={status}
             onSaveReportSettings={handleSaveReportSettings}
             onOpenProfile={() => setIsProfileModalOpen(true)}
+            onOpenChangeBudget={() => setIsChangeWeeklyBudgetOpen(true)}
             onRefreshStatus={fetchAllData}
           />
         )}
@@ -361,6 +429,13 @@ export function App() {
         onClose={() => setIsProfileModalOpen(false)}
         profile={profile}
         onSave={handleSaveProfile}
+      />
+
+      <ChangeWeeklyBudgetModal
+        isOpen={isChangeWeeklyBudgetOpen}
+        onClose={() => setIsChangeWeeklyBudgetOpen(false)}
+        currentWeeklyBudget={budgets.weekly_budget}
+        onSaveWeeklyBudget={handleSaveWeeklyBudget}
       />
 
       <EditTransactionModal

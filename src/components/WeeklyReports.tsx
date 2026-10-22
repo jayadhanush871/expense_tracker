@@ -26,10 +26,12 @@ import { api, formatINR } from '../services/api';
 
 interface WeeklyReportsProps {
   profile: Profile | null;
+  budgets?: BudgetSettings;
   reportSettings: WeeklyReportSettings;
   status: SystemStatus | null;
   onSaveReportSettings: (settings: Partial<WeeklyReportSettings>) => Promise<void>;
   onOpenProfile: () => void;
+  onOpenChangeBudget?: () => void;
   onRefreshStatus: () => Promise<void>;
 }
 
@@ -49,15 +51,17 @@ const TIMEZONES = [
 
 export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
   profile,
+  budgets,
   reportSettings,
   status,
   onSaveReportSettings,
   onOpenProfile,
+  onOpenChangeBudget,
   onRefreshStatus
 }) => {
   const [isActive, setIsActive] = useState(reportSettings.is_active);
   const [deliveryDay, setDeliveryDay] = useState(reportSettings.delivery_day || 'Sunday');
-  const [deliveryTime, setDeliveryTime] = useState(reportSettings.delivery_time || '09:00');
+  const [deliveryTime, setDeliveryTime] = useState(reportSettings.delivery_time || '00:00');
   const [timezone, setTimezone] = useState(reportSettings.timezone || 'Asia/Kolkata');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState(false);
@@ -87,7 +91,7 @@ export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
   useEffect(() => {
     setIsActive(reportSettings.is_active);
     setDeliveryDay(reportSettings.delivery_day || 'Sunday');
-    setDeliveryTime(reportSettings.delivery_time || '09:00');
+    setDeliveryTime(reportSettings.delivery_time || '00:00');
     setTimezone(reportSettings.timezone || 'Asia/Kolkata');
   }, [reportSettings]);
 
@@ -115,7 +119,7 @@ export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
 
   useEffect(() => {
     loadData();
-  }, [profile]);
+  }, [profile, budgets?.weekly_budget]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -354,7 +358,7 @@ export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
 
             <div>
               <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                Delivery Time
+                Delivery Time (12:00 AM Morning = 00:00)
               </label>
               <input
                 type="time"
@@ -419,32 +423,50 @@ export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
             </p>
           </div>
 
-          {/* Ask User for Recipient Email */}
-          <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-1.5">
-            <label className="block text-xs font-bold text-indigo-950 dark:text-indigo-200">
-              Recipient Email (Ask / Confirm):
-            </label>
-            <p className="text-[11px] text-slate-600 dark:text-slate-400">
-              Enter or confirm the email address to receive this report:
-            </p>
-            <div className="flex items-center space-x-2">
-              <input
-                type="email"
-                value={recipientInput}
-                onChange={(e) => setRecipientInput(e.target.value)}
-                placeholder="e.g. dhanush@example.com"
-                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              {profile?.email && recipientInput !== profile.email && (
+          {/* Saved Email Recipient Card */}
+          <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-1.5">
+                <Mail className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200">
+                  Report Delivery Email
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenProfile}
+                className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                Change Email &rarr;
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between bg-white dark:bg-slate-900 px-3 py-2 rounded-xl border border-indigo-100 dark:border-indigo-900/50">
+              <div className="truncate pr-2">
+                <span className="text-[10px] text-slate-400 block font-semibold uppercase">Destination</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-white truncate block">
+                  {profile?.email || recipientInput || 'No email configured'}
+                </span>
+              </div>
+              {profile?.email ? (
+                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 flex-shrink-0">
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>Saved Account</span>
+                </span>
+              ) : (
                 <button
                   type="button"
-                  onClick={() => setRecipientInput(profile.email)}
-                  className="px-2 py-1 text-[11px] font-semibold text-indigo-600 hover:underline whitespace-nowrap"
+                  onClick={onOpenProfile}
+                  className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-600 text-white flex-shrink-0"
                 >
-                  Reset
+                  Set Email
                 </button>
               )}
             </div>
+
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Reports are dispatched to your saved account email. You can change your email anytime in Profile Settings.
+            </p>
           </div>
 
           {/* Action 1: Send Weekly Report Now */}
@@ -555,53 +577,76 @@ export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
 
         {summary ? (
           <div className="p-6 space-y-6">
-            {/* Email Subject & Greeting Box */}
-            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2">
-              <div className="text-xs font-mono text-slate-500">
-                <strong>Subject:</strong> Your Weekly Expense and Budget Report ({summary.periodStart} - {summary.periodEnd})
+            {/* Visual Email & Form Preview (Strict layout: date, amount, spent on, category -> total spent, balance) */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+              <div className="bg-slate-50 dark:bg-slate-800/80 px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                    Form & Email Message Format
+                  </span>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Strict minimal output: table of transactions, followed only by total spent and balance.
+                  </p>
+                </div>
+                {onOpenChangeBudget && (
+                  <button
+                    type="button"
+                    onClick={onOpenChangeBudget}
+                    className="self-start sm:self-auto text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800"
+                  >
+                    Change Weekly Budget ({summary.isBudgetSet ? formatINR(summary.weeklyBudget) : 'Set'})
+                  </button>
+                )}
               </div>
-              <div className="text-xs font-mono text-slate-500">
-                <strong>To:</strong> {summary.userName || 'User'} &lt;{recipientInput || summary.recipientEmail}&gt;
-              </div>
-              <div className="text-sm font-bold text-slate-900 dark:text-white pt-1">
-                Hello {summary.userName || 'User'},
-              </div>
-              <div className="text-xs text-slate-600 dark:text-slate-300">
-                Here is your weekly financial summary for the period{' '}
-                <strong>{summary.periodStart}</strong> to <strong>{summary.periodEnd}</strong>.
-              </div>
-            </div>
 
-            {/* Exact Form Mail Fields Card as requested */}
-            <div className="p-4 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-2">
-              <div className="text-xs font-bold text-indigo-900 dark:text-indigo-200 uppercase tracking-wider">
-                Weekly Report Form Mail Summary (Sent via Formspree):
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-indigo-100 dark:border-slate-800">
-                  <span className="text-slate-500 text-[10px] block uppercase font-bold">Week Period</span>
-                  <span className="font-bold text-slate-900 dark:text-white">
-                    From {summary.periodStart} to {summary.periodEnd}
-                  </span>
-                </div>
-                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-indigo-100 dark:border-slate-800">
-                  <span className="text-slate-500 text-[10px] block uppercase font-bold">That Week Spent Amount</span>
-                  <span className="font-black text-rose-600 dark:text-rose-400 text-sm">
-                    {formatINR(summary.totalExpenses)}
-                  </span>
-                </div>
-                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-indigo-100 dark:border-slate-800 sm:col-span-2">
-                  <span className="text-slate-500 text-[10px] block uppercase font-bold">For What Was Spent</span>
-                  <div className="font-medium text-slate-800 dark:text-slate-200 mt-1 whitespace-pre-line">
+              {/* Table with columns: date, amount, spent on, category */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="bg-slate-50/50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[11px]">
+                      <th className="py-3 px-4">date</th>
+                      <th className="py-3 px-4">amount</th>
+                      <th className="py-3 px-4">spent on</th>
+                      <th className="py-3 px-4">category</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {summary.expenses && summary.expenses.length > 0 ? (
-                      summary.expenses.map(e => `• ${e.description} (${e.category}): ${formatINR(e.amount)}`).join('\n')
+                      summary.expenses.map((e, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                          <td className="py-2.5 px-4 font-mono text-slate-600 dark:text-slate-300">
+                            {e.date || '—'}
+                          </td>
+                          <td className="py-2.5 px-4 font-bold text-slate-900 dark:text-white">
+                            {formatINR(e.amount)}
+                          </td>
+                          <td className="py-2.5 px-4 text-slate-800 dark:text-slate-200">
+                            {e.description || '—'}
+                          </td>
+                          <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
+                            {e.category || 'Other'}
+                          </td>
+                        </tr>
+                      ))
                     ) : (
-                      'No expenses recorded this week (₹0 spent)'
+                      <tr>
+                        <td colSpan={4} className="py-6 px-4 text-center text-slate-400 italic">
+                          No expenses recorded
+                        </td>
+                      </tr>
                     )}
-                  </div>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Summary Box: total spent, balance only */}
+              <div className="p-4 bg-slate-50/80 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 space-y-1.5 text-sm font-semibold">
+                <div className="flex items-center space-x-2 text-slate-900 dark:text-white">
+                  <span className="text-slate-500 font-medium">total spent:</span>
+                  <span className="font-bold text-rose-600 dark:text-rose-400">{formatINR(summary.totalExpenses)}</span>
                 </div>
-                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-indigo-100 dark:border-slate-800 sm:col-span-2">
-                  <span className="text-slate-500 text-[10px] block uppercase font-bold">Remaining Balance</span>
+                <div className="flex items-center space-x-2 text-slate-900 dark:text-white">
+                  <span className="text-slate-500 font-medium">balance:</span>
                   <span className="font-bold text-emerald-600 dark:text-emerald-400">
                     {summary.isBudgetSet ? formatINR(summary.remainingBudget) : formatINR(summary.netCashFlow || 0)}
                   </span>
@@ -609,104 +654,22 @@ export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
               </div>
             </div>
 
-            {/* Calculated KPI Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                <span className="text-[10px] font-bold uppercase text-slate-400">Total Expenses</span>
-                <div className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
-                  {formatINR(summary.totalExpenses)}
-                </div>
-                <span className="text-[10px] text-slate-500">{summary.transactionCount} transactions</span>
+            {/* Raw Formspree Message Text Box */}
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-900 text-slate-200 p-4 font-mono text-xs overflow-x-auto">
+              <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2 flex items-center justify-between">
+                <span>Formspree Payload & Email Plain-Text Message (Sent to {recipientInput || summary.recipientEmail}):</span>
+                <span className="text-emerald-400 text-[10px]">Active</span>
               </div>
+              <pre className="text-slate-300 whitespace-pre leading-relaxed">
+{`date         amount      spent on                 category
+----------------------------------------------------------------------
+${summary.expenses && summary.expenses.length > 0
+  ? summary.expenses.map(e => `${(e.date || '').padEnd(12)} ${formatINR(e.amount).padEnd(12)} ${(e.description || '').padEnd(24)} ${e.category || 'Other'}`).join('\n')
+  : 'No expenses recorded'}
 
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                <span className="text-[10px] font-bold uppercase text-slate-400">Weekly Budget</span>
-                <div className="text-xl font-black text-slate-900 dark:text-white mt-1">
-                  {summary.isBudgetSet ? formatINR(summary.weeklyBudget) : 'Not Configured'}
-                </div>
-                <span className="text-[10px] text-slate-500">
-                  Remaining: {summary.isBudgetSet ? formatINR(summary.remainingBudget) : 'N/A'}
-                </span>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                <span className="text-[10px] font-bold uppercase text-slate-400">Budget Utilized</span>
-                <div className={`text-xl font-black mt-1 ${
-                  summary.budgetUtilizedPct >= 100 ? 'text-red-500' : summary.budgetUtilizedPct >= 75 ? 'text-amber-500' : 'text-emerald-500'
-                }`}>
-                  {summary.isBudgetSet ? `${summary.budgetUtilizedPct.toFixed(1)}%` : 'N/A'}
-                </div>
-                <span className="text-[10px] text-slate-500">
-                  Avg: {formatINR(summary.averageDailySpending)}/day
-                </span>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                <span className="text-[10px] font-bold uppercase text-slate-400">vs Previous Week</span>
-                <div className={`text-xl font-black mt-1 ${summary.spendingChangePct > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                  {summary.spendingChangePct > 0 ? '+' : ''}{summary.spendingChangePct.toFixed(1)}%
-                </div>
-                <span className="text-[10px] text-slate-500">
-                  Prev: {formatINR(summary.prevTotalExpenses)}
-                </span>
-              </div>
-            </div>
-
-            {/* Tables Grid: Category & Daily Breakdown */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Category Breakdown */}
-              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                <div className="bg-slate-50 dark:bg-slate-800 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
-                  Category Breakdown
-                </div>
-                {summary.categoryBreakdown.length === 0 ? (
-                  <div className="p-6 text-center text-xs text-slate-400">
-                    No expenses recorded across categories during this week.
-                  </div>
-                ) : (
-                  <table className="w-full text-xs text-left">
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {summary.categoryBreakdown.map((cat) => (
-                        <tr key={cat.category}>
-                          <td className="py-2.5 px-4 font-semibold text-slate-800 dark:text-slate-200">
-                            {cat.category}
-                          </td>
-                          <td className="py-2.5 px-4 text-right font-bold text-slate-900 dark:text-white">
-                            {formatINR(cat.amount)}
-                          </td>
-                          <td className="py-2.5 px-4 text-right text-slate-500 font-mono">
-                            {cat.percentage.toFixed(1)}%
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-
-              {/* Daily Breakdown */}
-              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                <div className="bg-slate-50 dark:bg-slate-800 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
-                  Daily Spending Breakdown
-                </div>
-                <table className="w-full text-xs text-left">
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {summary.dailyBreakdown.map((day) => (
-                      <tr key={day.date}>
-                        <td className="py-2.5 px-4 font-semibold text-slate-800 dark:text-slate-200">
-                          {day.day}
-                        </td>
-                        <td className="py-2.5 px-4 text-slate-500">
-                          {day.date}
-                        </td>
-                        <td className="py-2.5 px-4 text-right font-bold text-slate-900 dark:text-white">
-                          {formatINR(day.total)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+total spent: ${formatINR(summary.totalExpenses)}
+balance: ${summary.isBudgetSet ? formatINR(summary.remainingBudget) : formatINR(summary.netCashFlow || 0)}`}
+              </pre>
             </div>
           </div>
         ) : (
