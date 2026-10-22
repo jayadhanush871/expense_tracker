@@ -1,211 +1,166 @@
-# 💰 Personal Expense Tracker with Automated Weekly Email Reports & Persistent Storage
+# 💰 Personal Expense Tracker
 
-A modern, full-featured Personal Expense Tracker built with **React 18, TypeScript, Tailwind CSS, Express, Formspree (https://formspree.io/f/moejgbov), Resend, and Supabase / Local Persistent Storage**.
+[![React](https://img.shields.io/badge/React-18.3-61dafb?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178c6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38bdf8?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Vite](https://img.shields.io/badge/Vite-6.4-646cff?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Express](https://img.shields.io/badge/Express-4.21-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
+[![Formspree](https://img.shields.io/badge/Formspree-Connected-e51075?style=for-the-badge&logo=mailgun&logoColor=white)](https://formspree.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+
+> A fast, privacy-conscious personal expense tracker featuring quick-add transactions with automatic category detection, dynamic budget management, interactive analytics, and automated Sunday weekly financial email reports powered by Formspree.
 
 ---
 
-## 🌟 Key Updates & Specifications
+## 📖 About The Project
 
-### 1. 📧 Formspree Form Data Storage & Real Email Delivery
-- **Connected Endpoint**: `https://formspree.io/f/moejgbov`
-- **Instant Cloud Form Storage**: Profile updates and weekly reports are submitted directly to Formspree for immediate form storage and email delivery.
-- **Ask User for Email**: When dispatching weekly financial reports or verification tests, the app directly prompts and asks the user to confirm/enter the target recipient email address.
-- **Zero Configuration Required**: Functions immediately out-of-the-box using the active Formspree endpoint with zero setup hurdles!
+Managing everyday personal finances shouldn't be cumbersome or intrusive. **Personal Expense Tracker** is designed with a **minimal-friction philosophy**:
 
-### 2. 0️⃣ Initial Expenses Start at ₹0
-- **Clean Starting State**: When starting the application, expenses are initialized strictly at **₹0** across **0 transactions**.
-- **Calculations Trigger on Addition**: Financial metrics, budget utilization %, daily averages, and category distributions only start calculating after you add an expense using the quick-add form!
-- **Minimalist & Secure**: Exactly two fields — **Full Name** and **Email Address**.
-- **No Unnecessary Clutter**: Never asks for phone numbers, profile photos, addresses, date of birth, or occupation.
-- **Dynamic Usage**: Your saved name powers personalized dashboard greetings (`"Good morning, Dhanush!"`) and weekly email greetings (`"Hello Dhanush,"`).
-- **Update Anytime**: Easily update both details at any time from the top navigation bar.
+1. **Frictionless Expense Logging**: Record expenses with just two fields (**Amount** and **What I spent it on**). The system takes care of the timestamp and automatically detects the expense category using an intelligent real-time keyword classifier.
+2. **Automated Weekly Financial Summaries**: Every Sunday at midnight (12:00 AM), a structured report is compiled from your actual records and delivered directly to your inbox via [Formspree](https://formspree.io/f/moejgbov).
+3. **Strict Minimal Email Format**: Form notifications and emails focus strictly on what matters — a clean table of transactions (`date`, `amount`, `spent on`, `category`), followed only by `total spent` and `balance`, with zero unwanted fluff.
+4. **Simple & Private Account**: Create a profile in seconds with only your **Full Name** and **Email Address**. No phone numbers, photos, birth dates, or addresses are ever requested. Your account is remembered on restart without annoying re-prompts, and your email can be updated at any time.
+5. **Dynamic Budgets**: Configure weekly, monthly, and category-specific spending limits with automated threshold alerts (50%, 75%, 90%, 100%+). Your weekly budget is fully adjustable anytime without being locked to fixed defaults.
+6. **Zero-Configuration Ready**: Runs instantly with an embedded persistent file database (`server/data/store.json`) or connects seamlessly to cloud PostgreSQL via **Supabase**.
 
-### 2. ⚡ Quick-Add Expense with Automatic Time & Category
-- **Only Two Fields**: **Amount (₹)** and **What I spent it on** (e.g., `"Tea and snacks"`).
-- **Auto Date & Time**: Automatically captured from the system device when you save.
-- **Intelligent Category Auto-Detection**: Real-time keyword engine automatically detects categories:
-  - `"Tea and snacks"`, `"Swiggy biryani"` &rarr; **Food & Drinks**
-  - `"Uber to office"`, `"Petrol"` &rarr; **Transportation**
-  - `"Amazon clothes"`, `"Groceries"` &rarr; **Shopping**
-  - `"Electricity bill"`, `"WiFi recharge"` &rarr; **Bills & Utilities**
-  - `"Netflix"`, `"Movie tickets"` &rarr; **Entertainment**
-  - `"Medicine"`, `"Doctor consultation"` &rarr; **Health & Wellness**
-  - *Optional Category Override*: Click the detected category badge anytime to choose another category.
+---
 
-### 3. 📧 Automated Weekly Email Reports (Powered by Resend)
-- **Automatic Weekly Delivery**: Automatically calculates the past 7-day financial summary and delivers a responsive HTML & plain-text report to your saved email.
-- **Comprehensive Email Content**:
-  - Personalized greeting with your name.
-  - Reporting period dates (e.g., Oct 15, 2026 - Oct 21, 2026).
-  - Total expenses for the week.
-  - Total income & net cash flow (if income recorded).
-  - Weekly budget, amount spent against budget, remaining budget, and utilization percentage.
-  - Daily spending breakdown table (Monday through Sunday).
-  - Category-wise expense breakdown with percentages.
-  - Highest expense of the week with date and category.
-  - Average daily spending across active days.
-  - Comparison with the previous week (% increase/decrease).
-  - Transaction count and a factual summary paragraph based entirely on actual records.
-- **Zero Spending Handling**: If there are no expenses during the week, reports zero spending rather than inventing mock transactions.
-- **Duplicate Prevention Guard**: Tracks reporting periods so duplicate reports are never sent for the same period.
-- **Audit Logging & Retries**: Every delivery attempt is logged in `email_delivery_logs` with recipient, status, and retry capability.
+## ✨ Key Features
 
-### 4. 🎯 Budget Management & Warning Thresholds
-- **Separate Setup**: Keep budget setup completely separate from expense logging.
-- **Flexible Configuration**: Configure Weekly Budget, Monthly Budget, and optional Category-Specific Budgets.
-- **Formulas**:
-  - $\text{Budget Remaining} = \text{Budget} - \text{Actual Expenses}$
-  - $\text{Budget Utilization \%} = \frac{\text{Actual Expenses}}{\text{Budget}} \times 100$
-- **Accurate Handling**: Distinguishes between unset budgets (`null`) and zero budgets (`₹0`).
-- **Automated Threshold Warnings**:
-  - 🟡 **50% Reached**: Gentle advisory threshold
-  - 🟠 **75% Warning**: High spending attention
-  - 🔴 **90% Caution**: Critical budget threshold
-  - 🚨 **100%+ Exceeded**: Over-budget alarm
+### ⚡ 1. 2-Field Quick-Add with Smart Categorization
+- **Fast Entry**: Enter only the **Amount (₹)** and **Description** (e.g., `Tea and snacks`, `Uber to office`, `Amazon clothes`).
+- **Automatic Timestamps**: Date and exact system time are captured automatically upon saving.
+- **Auto Category Detection**:
+  - `Tea`, `Coffee`, `Lunch`, `Dinner`, `Swiggy` &rarr; **Food & Drinks**
+  - `Uber`, `Ola`, `Fuel`, `Metro`, `Bus` &rarr; **Transportation**
+  - `Amazon`, `Flipkart`, `Groceries`, `Mall` &rarr; **Shopping**
+  - `Electricity`, `WiFi`, `Rent`, `Bill` &rarr; **Bills & Utilities**
+  - `Netflix`, `Cinema`, `Movies`, `Games` &rarr; **Entertainment**
+  - `Doctor`, `Medicine`, `Gym`, `Pharmacy` &rarr; **Health & Wellness**
+- *Manual Override*: Click the detected badge anytime to customize the category if desired.
 
-### 5. 📊 Complete Financial Tools
-- **Dashboard**: Net balance card, income, expense, and budget progress bars.
-- **Analytics**: Daily, weekly, monthly, and yearly timeframes with interactive Chart.js charts.
-- **Transaction History**: Filter by type, category, date range, or description search, with sorting.
-- **Reports Export**: One-click download as **CSV** or styled **PDF** statements.
-- **Income & Savings Goals**: Track earnings, set savings goals with target dates, deposit funds, and celebrate milestones.
-- **Interactive Calendar**: Month-view calendar displaying daily spending dots; click any date to view all transactions recorded on that day.
-- **Themes & Responsive Design**: Seamless Dark/Light mode toggle and polished mobile/desktop layouts.
+### 0️⃣ 2. Clean State (Starts at ₹0)
+- The application begins strictly at **₹0 expenses** and 0 transactions.
+- Spending totals, remaining balances, and budget utilization calculations begin only after you log your first transaction.
+
+### 📧 3. Automated Weekly Email Reports
+- **Real Delivery**: Dispatches via the active Formspree endpoint (`https://formspree.io/f/moejgbov`).
+- **Sunday 12:00 AM Delivery**: Automated node-cron heartbeat scheduler checks your preferred timezone every Sunday morning.
+- **Duplicate Prevention Guard**: Marks reporting periods to guarantee you never receive duplicate emails for the same week.
+- **Strict Minimal Layout**:
+  ```text
+  date         amount      spent on                 category
+  ----------------------------------------------------------------------
+  2026-10-22   ₹40         Tea and snacks           Food & Drinks
+
+  total spent: ₹40
+  balance: ₹1,960
+  ```
+  *(Nothing extra: no greetings, category pie charts, or comparison cards cluttering the message).*
+
+### 🎯 4. Budget Management & Threshold Warnings
+- Set distinct **Weekly** and **Monthly** budgets, plus category-specific limits.
+- Instant **Change Weekly Budget** modal accessible directly from the Dashboard and Weekly Reports.
+- Automated color-coded warning banners:
+  - 🟡 **50% Spent**: Halfway alert
+  - 🟠 **75% Spent**: Caution alert
+  - 🔴 **90% Spent**: Critical warning
+  - 🚨 **100%+ Spent**: Over-budget alarm
+
+### 📊 5. Comprehensive Analytics & Statement Exports
+- **Interactive Charts**: Daily, weekly, monthly, and yearly breakdowns using Chart.js.
+- **Transaction History**: Filter by type, category, date, or text search, with instant editing and deletion.
+- **CSV & Styled PDF Reports**: One-click statement downloads with custom date ranges.
+- **Income & Savings Goals**: Track multiple income streams and manage savings goals with progress meters.
+- **Calendar View**: Visual month calendar with colored activity dots to inspect spending on specific dates.
+- **Dark & Light Mode**: Built-in responsive theme toggle with persistent user preference.
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technologies |
+|---|---|
+| **Frontend** | React 18, TypeScript, Tailwind CSS, Lucide Icons, Chart.js, Vite |
+| **Backend** | Node.js, Express 4, node-cron, CORS, dotenv |
+| **Email & Form Delivery** | Formspree (`https://formspree.io/f/moejgbov`), Resend API integration |
+| **Storage** | Local Persistent Storage (`server/data/store.json`) + Optional Supabase (PostgreSQL + RLS) |
+| **Testing** | Node.js Test Automation Suite (`scripts/test-verification.mjs`) |
 
 ---
 
 ## 🚀 Quick Start Guide
 
-### 1. Installation
-In the project directory, install dependencies:
-\`\`\`bash
+### 1. Prerequisites
+- **Node.js** v18+ installed on your system.
+- **npm** or **yarn**.
+
+### 2. Clone the Repository
+```bash
+git clone https://github.com/jayadhanush871/expense_tracker.git
+cd expense_tracker
+```
+
+### 3. Install Dependencies
+```bash
 npm install
-\`\`\`
+```
 
-### 2. Environment Variables Setup
+### 4. Configure Environment Variables
 Copy `.env.example` to `.env`:
-\`\`\`bash
+```bash
 cp .env.example .env
-\`\`\`
+```
 
-Your `.env` file contains:
-\`\`\`env
+Your `.env` contains:
+```env
 # Server Configuration
 PORT=5000
 NODE_ENV=development
 
-# Resend Email Delivery API Key (https://resend.com)
-RESEND_API_KEY=
+# Active Formspree Endpoint for Form Storage & Weekly Email Delivery
+FORMSPREE_URL=https://formspree.io/f/moejgbov
 
-# Sender Email Address (default test address provided by Resend)
+# Optional: Resend SMTP API Key (https://resend.com)
+RESEND_API_KEY=
 SENDER_EMAIL=Expense Tracker <onboarding@resend.dev>
 
-# Secret token used to protect report generation & cron trigger endpoints
+# Secret token for protected scheduler endpoints
 CRON_SECRET=expense_tracker_secure_token_2026
 
-# Supabase Persistent Cloud Storage (Optional - Local file database is used when empty)
+# Optional: Supabase PostgreSQL Cloud DB (Local persistent file store used when blank)
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
-\`\`\`
+```
 
 > [!NOTE]
-> **Out-of-the-Box Local Storage**: If `SUPABASE_URL` is left empty, the application automatically uses a local persistent file database (`server/data/store.json`). Everything works immediately with zero configuration!
+> **Zero Setup Out-of-the-Box**: If Supabase or Resend credentials are not configured, the app immediately uses the built-in local JSON file store (`server/data/store.json`) and the Formspree endpoint. Everything works immediately!
 
----
-
-### 3. Run the Application
-Start both the Express backend API and Vite frontend server together with a single command:
-\`\`\`bash
+### 5. Start the Application
+Run both the Express backend API and Vite frontend server with a single command:
+```bash
 npm run dev
-\`\`\`
+```
 
-- **Frontend Application**: [http://localhost:3000](http://localhost:3000)
-- **Backend API Server**: [http://localhost:5000/api](http://localhost:5000/api)
-
----
-
-## 📧 How to Configure Real Email Delivery (Resend)
-
-1. Sign up for a free account at [https://resend.com](https://resend.com).
-2. Go to **API Keys** and generate a new key (starts with `re_...`).
-3. Open `.env` and set:
-   \`\`\`env
-   RESEND_API_KEY=re_your_api_key_here
-   SENDER_EMAIL=Expense Tracker <onboarding@resend.dev>
-   \`\`\`
-   *(Note: Resend allows sending to your own verified account email using `onboarding@resend.dev`. Once you add and verify a custom domain in Resend, you can send to any email address using e.g. `reports@yourdomain.com`)*.
-4. Open the web application and navigate to the **Weekly Email** tab.
-5. Click **"Send Test Verification Email"** to test your connection instantly.
-6. Click **"Send Report Email"** to dispatch your weekly financial report.
+- **Frontend App**: [http://localhost:3000](http://localhost:3000)
+- **Backend API**: [http://localhost:5000/api](http://localhost:5000/api)
 
 ---
 
-## ⏰ Automated Weekly Email Scheduler
+## 🧪 Automated Verification Suite
 
-The application offers two reliable scheduling approaches:
+Run the comprehensive test suite verifying all 44 test assertions across profile creation, quick-add expenses, auto category detection, zero-start state, weekly calculation, minimal email formatting, and duplicate prevention:
 
-### Method A: Built-in Timezone-Aware Background Scheduler
-The Express backend includes an integrated `node-cron` background worker that executes every minute. It checks:
-1. Whether **Automatic Weekly Reports** is toggled ON.
-2. If today matches your preferred delivery day (e.g., `Sunday`).
-3. If the current time matches your preferred delivery time (e.g., `09:00`) in your configured **Timezone** (e.g., `Asia/Kolkata`).
-4. Checks duplicate prevention (`last_sent_period`) to ensure reports are sent only once per week.
-
-You can also run the scheduler as a standalone background process:
-\`\`\`bash
-npm run scheduler
-\`\`\`
-
-### Method B: Supabase pg_cron / Cloud Webhook
-You can trigger weekly report generation using an external scheduler or Supabase `pg_cron` with the secure token:
-\`\`\`bash
-curl -X POST http://localhost:5000/api/reports/send-weekly \
-  -H "Authorization: Bearer expense_tracker_secure_token_2026" \
-  -H "Content-Type: application/json"
-\`\`\`
-
----
-
-## 🗄️ Database Setup (Supabase PostgreSQL)
-
-When you're ready to migrate from local storage to cloud Supabase:
-
-1. Create a project at [https://supabase.com](https://supabase.com).
-2. Navigate to **SQL Editor** and execute the entire content of [`supabase-schema.sql`](./supabase-schema.sql).
-3. This creates all 8 required tables:
-   - `profiles`
-   - `expenses`
-   - `incomes`
-   - `budget_settings`
-   - `categories`
-   - `savings_goals`
-   - `weekly_report_settings`
-   - `email_delivery_logs`
-   - Row Level Security (RLS) policies and performance indexes.
-4. Copy your **Project URL** and **Service Role Key** (or Anon Key) from **Project Settings &rarr; API**.
-5. Paste them into `.env`:
-   \`\`\`env
-   SUPABASE_URL=https://your-project.supabase.co
-   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-   \`\`\`
-6. Restart the server (`npm run dev`). The app will display **"Supabase Cloud Database (PostgreSQL)"** active.
-
----
-
-## 🧪 Automated Verification & Testing
-
-To run the automated verification test suite:
-\`\`\`bash
+```bash
 node scripts/test-verification.mjs
-\`\`\`
+```
 
-This script tests and verifies all 7 user requirements:
-1. Simple Profile creation with name and email validation.
-2. Quick-add expense of ₹40 for "Tea and snacks" with auto date, auto time, and auto category detection.
-3. Persistent storage confirmation in database.
-4. Weekly and monthly budget configuration and threshold calculations.
-5. Weekly financial report calculation from saved records.
-6. Responsive HTML and plain-text email generation.
-7. Resend email dispatch, duplicate prevention, and audit logging.
-8. Zero spending handling for weeks with no transactions.
+**Result:** `44 PASSED, 0 FAILED`
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).
