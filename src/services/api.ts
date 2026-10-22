@@ -12,10 +12,23 @@ import {
 
 const API_BASE = '/api';
 
+function getCurrentUserEmail(): string {
+  try {
+    const cached = localStorage.getItem('expense_tracker_profile');
+    if (cached) {
+      const p = JSON.parse(cached);
+      return (p?.email || '').trim().toLowerCase();
+    }
+  } catch {}
+  return '';
+}
+
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const email = getCurrentUserEmail();
   const res = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
+      ...(email ? { 'X-User-Email': email } : {}),
       ...options?.headers,
     },
     ...options,
@@ -38,7 +51,8 @@ export const api = {
   getStatus: () => fetchJson<SystemStatus>(`${API_BASE}/status`),
 
   // Profile
-  getProfile: () => fetchJson<Profile>(`${API_BASE}/profile`),
+  getProfile: (email?: string) =>
+    fetchJson<Profile>(`${API_BASE}/profile${email ? `?email=${encodeURIComponent(email)}` : ''}`),
   saveProfile: (data: { full_name: string; email: string }) =>
     fetchJson<{ success: boolean; profile: Profile }>(`${API_BASE}/profile`, {
       method: 'POST',
@@ -46,8 +60,9 @@ export const api = {
     }),
 
   // Expenses
-  getExpenses: () => fetchJson<Expense[]>(`${API_BASE}/expenses`),
-  addExpense: (data: { amount: number; description: string; category?: string; date?: string; time?: string }) =>
+  getExpenses: (email?: string) =>
+    fetchJson<Expense[]>(`${API_BASE}/expenses${email ? `?email=${encodeURIComponent(email)}` : ''}`),
+  addExpense: (data: { amount: number; description: string; category?: string; date?: string; time?: string; user_email?: string }) =>
     fetchJson<Expense>(`${API_BASE}/expenses`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -63,8 +78,9 @@ export const api = {
     }),
 
   // Incomes
-  getIncomes: () => fetchJson<Income[]>(`${API_BASE}/incomes`),
-  addIncome: (data: { amount: number; source: string; category?: string; date?: string }) =>
+  getIncomes: (email?: string) =>
+    fetchJson<Income[]>(`${API_BASE}/incomes${email ? `?email=${encodeURIComponent(email)}` : ''}`),
+  addIncome: (data: { amount: number; source: string; category?: string; date?: string; user_email?: string }) =>
     fetchJson<Income>(`${API_BASE}/incomes`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -80,16 +96,18 @@ export const api = {
     }),
 
   // Budgets
-  getBudgets: () => fetchJson<BudgetSettings>(`${API_BASE}/budgets`),
-  saveBudgets: (data: BudgetSettings) =>
-    fetchJson<BudgetSettings>(`${API_BASE}/budgets`, {
+  getBudgets: (email?: string) =>
+    fetchJson<BudgetSettings>(`${API_BASE}/budgets${email ? `?email=${encodeURIComponent(email)}` : ''}`),
+  saveBudgets: (data: BudgetSettings, email?: string) =>
+    fetchJson<BudgetSettings>(`${API_BASE}/budgets${email ? `?email=${encodeURIComponent(email)}` : ''}`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   // Savings Goals
-  getGoals: () => fetchJson<SavingsGoal[]>(`${API_BASE}/goals`),
-  addGoal: (data: { title: string; target_amount: number; saved_amount?: number; target_date?: string | null }) =>
+  getGoals: (email?: string) =>
+    fetchJson<SavingsGoal[]>(`${API_BASE}/goals${email ? `?email=${encodeURIComponent(email)}` : ''}`),
+  addGoal: (data: { title: string; target_amount: number; saved_amount?: number; target_date?: string | null; user_email?: string }) =>
     fetchJson<SavingsGoal>(`${API_BASE}/goals`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -105,13 +123,15 @@ export const api = {
     }),
 
   // Reports & Emails
-  getReportSettings: () => fetchJson<WeeklyReportSettings>(`${API_BASE}/reports/settings`),
-  saveReportSettings: (data: Partial<WeeklyReportSettings>) =>
-    fetchJson<WeeklyReportSettings>(`${API_BASE}/reports/settings`, {
+  getReportSettings: (email?: string) =>
+    fetchJson<WeeklyReportSettings>(`${API_BASE}/reports/settings${email ? `?email=${encodeURIComponent(email)}` : ''}`),
+  saveReportSettings: (data: Partial<WeeklyReportSettings>, email?: string) =>
+    fetchJson<WeeklyReportSettings>(`${API_BASE}/reports/settings${email ? `?email=${encodeURIComponent(email)}` : ''}`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  getWeeklySummary: () => fetchJson<WeeklySummary>(`${API_BASE}/reports/weekly-summary`),
+  getWeeklySummary: (email?: string) =>
+    fetchJson<WeeklySummary>(`${API_BASE}/reports/weekly-summary${email ? `?email=${encodeURIComponent(email)}` : ''}`),
   sendWeeklyReport: (options?: { force?: boolean; email?: string }) =>
     fetchJson<{ success: boolean; skipped?: boolean; message?: string; error?: string; summary?: WeeklySummary }>(
       `${API_BASE}/reports/send-weekly`,
@@ -125,10 +145,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email }),
     }),
-  getEmailLogs: () => fetchJson<EmailLog[]>(`${API_BASE}/reports/logs`),
+  getEmailLogs: (email?: string) =>
+    fetchJson<EmailLog[]>(`${API_BASE}/reports/logs${email ? `?email=${encodeURIComponent(email)}` : ''}`),
   retryEmail: (id: string) =>
     fetchJson<{ success: boolean; error?: string }>(`${API_BASE}/reports/retry/${id}`, {
       method: 'POST',
+    }),
+
+  // Multi-user & Offline sync
+  syncOfflineData: (data: { email: string; expenses: Expense[]; incomes: Income[] }) =>
+    fetchJson<{ success: boolean; expenses: Expense[]; incomes: Income[] }>(`${API_BASE}/sync`, {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
 };
 

@@ -104,15 +104,15 @@ export const db = {
   },
 
   // 1. PROFILE
-  async getProfile() {
+  async getProfile(userEmail) {
     if (isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from('profiles')
-          .select('*')
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .select('*');
+        if (userEmail) query = query.eq('email', userEmail.toLowerCase());
+        query = query.order('updated_at', { ascending: false }).limit(1);
+        const { data, error } = await query.maybeSingle();
 
         if (error) throw error;
         if (data) return data;
@@ -121,6 +121,9 @@ export const db = {
       }
     }
     const store = readLocalStore();
+    if (userEmail && store.profiles && store.profiles[userEmail.toLowerCase()]) {
+      return store.profiles[userEmail.toLowerCase()];
+    }
     return store.profile;
   },
 
@@ -148,6 +151,8 @@ export const db = {
 
     const store = readLocalStore();
     store.profile = updated;
+    if (!store.profiles) store.profiles = {};
+    store.profiles[updated.email] = updated;
     writeLocalStore(store);
     return updated;
   },
@@ -175,7 +180,7 @@ export const db = {
 
   async addExpense(expense) {
     const newRecord = {
-      id: 'exp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+      id: expense.id || ('exp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5)),
       user_email: expense.user_email,
       amount: Number(expense.amount),
       description: expense.description.trim(),
@@ -262,7 +267,7 @@ export const db = {
 
   async addIncome(income) {
     const newRecord = {
-      id: 'inc-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+      id: income.id || ('inc-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5)),
       user_email: income.user_email,
       amount: Number(income.amount),
       source: income.source.trim(),
@@ -339,6 +344,9 @@ export const db = {
       }
     }
     const store = readLocalStore();
+    if (userEmail && store.budgets_by_email && store.budgets_by_email[userEmail.toLowerCase()]) {
+      return store.budgets_by_email[userEmail.toLowerCase()];
+    }
     return store.budgets || { weekly_budget: null, monthly_budget: null, category_budgets: {} };
   },
 
@@ -366,6 +374,10 @@ export const db = {
 
     const store = readLocalStore();
     store.budgets = payload;
+    if (!store.budgets_by_email) store.budgets_by_email = {};
+    if (userEmail) {
+      store.budgets_by_email[userEmail.toLowerCase()] = payload;
+    }
     writeLocalStore(store);
     return payload;
   },
@@ -384,7 +396,11 @@ export const db = {
       }
     }
     const store = readLocalStore();
-    return store.savings_goals || [];
+    let goals = store.savings_goals || [];
+    if (userEmail) {
+      goals = goals.filter(g => !g.user_email || g.user_email.toLowerCase() === userEmail.toLowerCase());
+    }
+    return goals;
   },
 
   async addSavingsGoal(goal) {

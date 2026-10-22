@@ -93,10 +93,19 @@ app.get('/api/status', (req, res) => {
   });
 });
 
+// Helper to extract email from request query, header, or body
+function getRequestEmail(req) {
+  const fromQuery = req.query?.email;
+  const fromHeader = req.headers['x-user-email'];
+  const fromBody = req.body?.user_email || (typeof req.body?.email === 'string' && req.body?.email.includes('@') ? req.body?.email : '');
+  return (fromQuery || fromHeader || fromBody || '').toString().trim().toLowerCase();
+}
+
 // 2. Profile Management (Simple Profile: Full Name and Email Address only)
 app.get('/api/profile', async (req, res) => {
   try {
-    const profile = await db.getProfile();
+    const email = getRequestEmail(req);
+    const profile = await db.getProfile(email);
     res.json(profile);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -151,8 +160,10 @@ app.post('/api/profile', async (req, res) => {
 // 3. Expenses
 app.get('/api/expenses', async (req, res) => {
   try {
-    const profile = await db.getProfile();
-    const expenses = await db.getExpenses(profile?.email);
+    const email = getRequestEmail(req);
+    const profile = await db.getProfile(email);
+    const targetEmail = email || profile?.email;
+    const expenses = await db.getExpenses(targetEmail);
     res.json(expenses);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -172,7 +183,9 @@ app.post('/api/expenses', async (req, res) => {
       return res.status(400).json({ error: 'Please describe what you spent on.' });
     }
 
-    const profile = await db.getProfile();
+    const email = getRequestEmail(req);
+    const profile = await db.getProfile(email);
+    const userEmail = email || req.body.user_email || profile?.email || 'user@example.com';
     const now = new Date();
 
     // Auto-detect category if not explicitly provided or if user asks for auto
@@ -183,7 +196,7 @@ app.post('/api/expenses', async (req, res) => {
     const finalTime = time || now.toTimeString().split(' ')[0];
 
     const newExpense = await db.addExpense({
-      user_email: profile?.email || 'user@example.com',
+      user_email: userEmail,
       amount: numAmount,
       description: description.trim(),
       category: finalCategory,
@@ -228,8 +241,10 @@ app.delete('/api/expenses/:id', async (req, res) => {
 // 4. Incomes
 app.get('/api/incomes', async (req, res) => {
   try {
-    const profile = await db.getProfile();
-    const incomes = await db.getIncomes(profile?.email);
+    const email = getRequestEmail(req);
+    const profile = await db.getProfile(email);
+    const targetEmail = email || profile?.email;
+    const incomes = await db.getIncomes(targetEmail);
     res.json(incomes);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -248,9 +263,11 @@ app.post('/api/incomes', async (req, res) => {
       return res.status(400).json({ error: 'Please enter an income source description.' });
     }
 
-    const profile = await db.getProfile();
+    const email = getRequestEmail(req);
+    const profile = await db.getProfile(email);
+    const userEmail = email || req.body.user_email || profile?.email || 'user@example.com';
     const newIncome = await db.addIncome({
-      user_email: profile?.email || 'user@example.com',
+      user_email: userEmail,
       amount: numAmount,
       source: source.trim(),
       category: category || 'Salary',
@@ -293,8 +310,10 @@ app.delete('/api/incomes/:id', async (req, res) => {
 // 5. Budgets
 app.get('/api/budgets', async (req, res) => {
   try {
-    const profile = await db.getProfile();
-    const budgets = await db.getBudgets(profile?.email);
+    const email = getRequestEmail(req);
+    const profile = await db.getProfile(email);
+    const targetEmail = email || profile?.email;
+    const budgets = await db.getBudgets(targetEmail);
     res.json(budgets);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -303,10 +322,12 @@ app.get('/api/budgets', async (req, res) => {
 
 app.post('/api/budgets', async (req, res) => {
   try {
-    const profile = await db.getProfile();
+    const email = getRequestEmail(req);
+    const profile = await db.getProfile(email);
+    const targetEmail = email || profile?.email || 'user@example.com';
     const { weekly_budget, monthly_budget, category_budgets } = req.body;
 
-    const saved = await db.saveBudgets(profile?.email || 'user@example.com', {
+    const saved = await db.saveBudgets(targetEmail, {
       weekly_budget: weekly_budget === '' || weekly_budget === null ? null : Number(weekly_budget),
       monthly_budget: monthly_budget === '' || monthly_budget === null ? null : Number(monthly_budget),
       category_budgets: category_budgets || {}
@@ -318,11 +339,67 @@ app.post('/api/budgets', async (req, res) => {
   }
 });
 
+// Sync offline or localStorage data so history is never lost across sessions/restarts
+app.post('/api/sync', async (req, res) => {
+  try {
+    const { email, expenses = [], incomes = [] } = req.body;
+    const targetEmail = (email || getRequestEmail(req)).trim().toLowerCase();
+    if (!targetEmail) return res.status(400).json({ error: 'Email required for sync' });
+
+    const serverExpenses = await db.getExpenses(targetEmail);
+    const serverIncomes = await db.getIncomes(targetEmail);
+
+    const existingExpIds = new Set(serverExpenses.map(e => e.id));
+    const existingIncIds = new Set(serverIncomes.map(i => i.id));
+
+    let addedExp = 0;
+    for (const e of expenses) {
+      if (!existingExpIds.has(e.id)) {
+        await db.addExpense({
+          id: e.id,
+          user_email: targetEmail,
+          amount: Number(e.amount),
+          description: (e.description || '').trim(),
+          category: e.category || 'Other',
+          date: e.date,
+          time: e.time
+        });
+        existingExpIds.add(e.id);
+        addedExp++;
+      }
+    }
+
+    let addedInc = 0;
+    for (const i of incomes) {
+      if (!existingIncIds.has(i.id)) {
+        await db.addIncome({
+          id: i.id,
+          user_email: targetEmail,
+          amount: Number(i.amount),
+          source: (i.source || '').trim(),
+          category: i.category || 'Salary',
+          date: i.date
+        });
+        existingIncIds.add(i.id);
+        addedInc++;
+      }
+    }
+
+    const finalExp = await db.getExpenses(targetEmail);
+    const finalInc = await db.getIncomes(targetEmail);
+    res.json({ success: true, expenses: finalExp, incomes: finalInc, addedExp, addedInc });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 6. Savings Goals
 app.get('/api/goals', async (req, res) => {
   try {
-    const profile = await db.getProfile();
-    const goals = await db.getSavingsGoals(profile?.email);
+    const email = getRequestEmail(req);
+    const profile = await db.getProfile(email);
+    const targetEmail = email || profile?.email;
+    const goals = await db.getSavingsGoals(targetEmail);
     res.json(goals);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -340,9 +417,11 @@ app.post('/api/goals', async (req, res) => {
       return res.status(400).json({ error: 'Target amount must be greater than 0.' });
     }
 
-    const profile = await db.getProfile();
+    const email = getRequestEmail(req);
+    const profile = await db.getProfile(email);
+    const userEmail = email || req.body.user_email || profile?.email || 'user@example.com';
     const newGoal = await db.addSavingsGoal({
-      user_email: profile?.email || 'user@example.com',
+      user_email: userEmail,
       title: title.trim(),
       target_amount: numTarget,
       saved_amount: Number(saved_amount || 0),

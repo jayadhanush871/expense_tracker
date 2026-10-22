@@ -26,6 +26,32 @@ import {
 import { api } from './services/api';
 import { Database, ShieldAlert, Sparkles, CheckCircle2 } from 'lucide-react';
 
+function getCachedEmail(): string {
+  try {
+    const raw = localStorage.getItem('expense_tracker_profile');
+    if (raw) {
+      const p = JSON.parse(raw);
+      return (p?.email || '').trim().toLowerCase();
+    }
+  } catch {}
+  return '';
+}
+
+function getStoredList<T>(key: string): T[] {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function setStoredData(key: string, value: any) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {}
+}
+
 export function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [profile, setProfile] = useState<Profile | null>(() => {
@@ -36,9 +62,33 @@ export function App() {
       return null;
     }
   });
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [incomes, setIncomes] = useState<Income[]>([]);
+
+  const [expenses, setExpenses] = useState<Expense[]>(() => {
+    const email = getCachedEmail();
+    if (email) {
+      const list = getStoredList<Expense>(`expense_tracker_expenses_${email}`);
+      if (list.length > 0) return list;
+    }
+    return getStoredList<Expense>('expense_tracker_expenses');
+  });
+
+  const [incomes, setIncomes] = useState<Income[]>(() => {
+    const email = getCachedEmail();
+    if (email) {
+      const list = getStoredList<Income>(`expense_tracker_incomes_${email}`);
+      if (list.length > 0) return list;
+    }
+    return getStoredList<Income>('expense_tracker_incomes');
+  });
+
   const [budgets, setBudgets] = useState<BudgetSettings>(() => {
+    const email = getCachedEmail();
+    if (email) {
+      try {
+        const cached = localStorage.getItem(`expense_tracker_budgets_${email}`);
+        if (cached) return JSON.parse(cached);
+      } catch {}
+    }
     try {
       const cached = localStorage.getItem('expense_tracker_budgets');
       return cached ? JSON.parse(cached) : {
@@ -54,7 +104,16 @@ export function App() {
       };
     }
   });
-  const [goals, setGoals] = useState<SavingsGoal[]>([]);
+
+  const [goals, setGoals] = useState<SavingsGoal[]>(() => {
+    const email = getCachedEmail();
+    if (email) {
+      const list = getStoredList<SavingsGoal>(`expense_tracker_goals_${email}`);
+      if (list.length > 0) return list;
+    }
+    return getStoredList<SavingsGoal>('expense_tracker_goals');
+  });
+
   const [reportSettings, setReportSettings] = useState<WeeklyReportSettings>({
     is_active: true,
     delivery_day: 'Sunday',
@@ -87,10 +146,30 @@ export function App() {
     }
   }, [darkMode]);
 
-  // Initial Data Fetching
-  const fetchAllData = async () => {
+  // Initial Data Fetching & Sync
+  const fetchAllData = async (targetEmail?: string) => {
     try {
       setIsLoading(true);
+      const activeEmail = (
+        targetEmail ||
+        profile?.email ||
+        getCachedEmail()
+      ).trim().toLowerCase();
+
+      // Immediately restore from local storage cache if we have an email
+      if (activeEmail) {
+        const cachedExp = getStoredList<Expense>(`expense_tracker_expenses_${activeEmail}`);
+        const cachedInc = getStoredList<Income>(`expense_tracker_incomes_${activeEmail}`);
+        const cachedGoals = getStoredList<SavingsGoal>(`expense_tracker_goals_${activeEmail}`);
+        if (cachedExp.length > 0) setExpenses(cachedExp);
+        if (cachedInc.length > 0) setIncomes(cachedInc);
+        if (cachedGoals.length > 0) setGoals(cachedGoals);
+        try {
+          const cachedBudg = localStorage.getItem(`expense_tracker_budgets_${activeEmail}`);
+          if (cachedBudg) setBudgets(JSON.parse(cachedBudg));
+        } catch {}
+      }
+
       const [
         sysStatus,
         prof,
@@ -101,12 +180,12 @@ export function App() {
         repSet
       ] = await Promise.all([
         api.getStatus().catch(() => null),
-        api.getProfile().catch(() => null),
-        api.getExpenses().catch(() => []),
-        api.getIncomes().catch(() => []),
-        api.getBudgets().catch(() => ({ weekly_budget: null, monthly_budget: null, category_budgets: {} })),
-        api.getGoals().catch(() => []),
-        api.getReportSettings().catch(() => ({
+        api.getProfile(activeEmail || undefined).catch(() => null),
+        api.getExpenses(activeEmail || undefined).catch(() => []),
+        api.getIncomes(activeEmail || undefined).catch(() => []),
+        api.getBudgets(activeEmail || undefined).catch(() => ({ weekly_budget: null, monthly_budget: null, category_budgets: {} })),
+        api.getGoals(activeEmail || undefined).catch(() => []),
+        api.getReportSettings(activeEmail || undefined).catch(() => ({
           is_active: true,
           delivery_day: 'Sunday',
           delivery_time: '00:00',
@@ -117,42 +196,92 @@ export function App() {
 
       if (sysStatus) setStatus(sysStatus);
 
-      // Profile persistence: prefer server, fallback to localStorage
+      // Determine effective email and profile
+      const effectiveEmail = activeEmail || (prof?.email || '').trim().toLowerCase();
       if (prof && prof.email) {
         setProfile(prof);
+        setStoredData('expense_tracker_profile', prof);
+        localStorage.setItem('expense_tracker_account_created', 'true');
+      } else if (effectiveEmail) {
+        const fallbackProf = { full_name: prof?.full_name || profile?.full_name || 'My Account', email: effectiveEmail };
+        setProfile(fallbackProf);
+        setStoredData('expense_tracker_profile', fallbackProf);
+        localStorage.setItem('expense_tracker_account_created', 'true');
+        api.saveProfile(fallbackProf).catch(() => {});
+      }
+
+      // Merge expenses (server + local cache) so no history is lost across restarts or logins
+      let mergedExpenses: Expense[] = expList;
+      if (effectiveEmail) {
+        const localExp = getStoredList<Expense>(`expense_tracker_expenses_${effectiveEmail}`);
+        const expMap = new Map<string, Expense>();
+        localExp.forEach((e) => { if (e && e.id) expMap.set(e.id, e); });
+        expList.forEach((e: Expense) => { if (e && e.id) expMap.set(e.id, e); });
+        mergedExpenses = Array.from(expMap.values()).sort(
+          (a, b) => new Date(`${b.date}T${b.time || '00:00:00'}`).getTime() - new Date(`${a.date}T${a.time || '00:00:00'}`).getTime()
+        );
+        setStoredData(`expense_tracker_expenses_${effectiveEmail}`, mergedExpenses);
+        setStoredData('expense_tracker_expenses', mergedExpenses);
+      }
+      setExpenses(mergedExpenses);
+
+      // Merge incomes (server + local cache)
+      let mergedIncomes: Income[] = incList;
+      if (effectiveEmail) {
+        const localInc = getStoredList<Income>(`expense_tracker_incomes_${effectiveEmail}`);
+        const incMap = new Map<string, Income>();
+        localInc.forEach((i) => { if (i && i.id) incMap.set(i.id, i); });
+        incList.forEach((i: Income) => { if (i && i.id) incMap.set(i.id, i); });
+        mergedIncomes = Array.from(incMap.values()).sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+        setStoredData(`expense_tracker_incomes_${effectiveEmail}`, mergedIncomes);
+        setStoredData('expense_tracker_incomes', mergedIncomes);
+      }
+      setIncomes(mergedIncomes);
+
+      // Two-way sync: if local had records that server is missing (e.g. Render restart/ephemeral disk wipe)
+      if (effectiveEmail && (mergedExpenses.length > expList.length || mergedIncomes.length > incList.length)) {
+        api.syncOfflineData({
+          email: effectiveEmail,
+          expenses: mergedExpenses,
+          incomes: mergedIncomes
+        }).catch((err) => console.warn('Offline sync background notice:', err));
+      }
+
+      // Budgets persistence: prefer server, fallback to local storage
+      if (budg && (budg.weekly_budget !== null || budg.monthly_budget !== null)) {
+        setBudgets(budg);
+        setStoredData('expense_tracker_budgets', budg);
+        if (effectiveEmail) setStoredData(`expense_tracker_budgets_${effectiveEmail}`, budg);
+      } else if (effectiveEmail) {
         try {
-          localStorage.setItem('expense_tracker_profile', JSON.stringify(prof));
-          localStorage.setItem('expense_tracker_account_created', 'true');
-        } catch {}
-      } else {
-        try {
-          const cached = localStorage.getItem('expense_tracker_profile');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (parsed && parsed.email) {
-              setProfile(parsed);
-              api.saveProfile(parsed).catch(() => {});
-            }
+          const cachedB = localStorage.getItem(`expense_tracker_budgets_${effectiveEmail}`);
+          if (cachedB) {
+            const parsedB = JSON.parse(cachedB);
+            setBudgets(parsedB);
+            api.saveBudgets(parsedB, effectiveEmail).catch(() => {});
           }
         } catch {}
       }
 
-      setExpenses(expList);
-      setIncomes(incList);
-
-      // Budgets persistence: prefer server, fallback to localStorage
-      if (budg && (budg.weekly_budget !== null || budg.monthly_budget !== null)) {
-        setBudgets(budg);
-        try {
-          localStorage.setItem('expense_tracker_budgets', JSON.stringify(budg));
-        } catch {}
+      // Goals persistence
+      let mergedGoals: SavingsGoal[] = gList;
+      if (effectiveEmail) {
+        const localGoals = getStoredList<SavingsGoal>(`expense_tracker_goals_${effectiveEmail}`);
+        const goalMap = new Map<string, SavingsGoal>();
+        localGoals.forEach((g) => { if (g && g.id) goalMap.set(g.id, g); });
+        gList.forEach((g: SavingsGoal) => { if (g && g.id) goalMap.set(g.id, g); });
+        mergedGoals = Array.from(goalMap.values());
+        setStoredData(`expense_tracker_goals_${effectiveEmail}`, mergedGoals);
+        setStoredData('expense_tracker_goals', mergedGoals);
       }
+      setGoals(mergedGoals);
 
-      setGoals(gList);
       setReportSettings(repSet);
 
       // Once account is created, NEVER prompt again on restart/reload
-      const hasAccount = localStorage.getItem('expense_tracker_account_created') === 'true' || Boolean(prof?.email);
+      const hasAccount = localStorage.getItem('expense_tracker_account_created') === 'true' || Boolean(prof?.email || effectiveEmail);
       if (!hasAccount) {
         setIsProfileModalOpen(true);
       } else {
@@ -177,8 +306,16 @@ export function App() {
     date: string;
     time: string;
   }) => {
-    const created = await api.addExpense(data);
-    setExpenses((prev) => [created, ...prev]);
+    const activeEmail = (profile?.email || getCachedEmail()).trim().toLowerCase();
+    const created = await api.addExpense({ ...data, user_email: activeEmail || undefined });
+    setExpenses((prev) => {
+      const next = [created, ...prev];
+      if (activeEmail) {
+        setStoredData(`expense_tracker_expenses_${activeEmail}`, next);
+      }
+      setStoredData('expense_tracker_expenses', next);
+      return next;
+    });
   };
 
   const handleEditExpense = (expense: Expense) => {
@@ -186,14 +323,30 @@ export function App() {
   };
 
   const handleSaveEditedExpense = async (id: string, updates: Partial<Expense>) => {
+    const activeEmail = (profile?.email || getCachedEmail()).trim().toLowerCase();
     const updated = await api.updateExpense(id, updates);
-    setExpenses((prev) => prev.map((e) => (e.id === id ? updated : e)));
+    setExpenses((prev) => {
+      const next = prev.map((e) => (e.id === id ? updated : e));
+      if (activeEmail) {
+        setStoredData(`expense_tracker_expenses_${activeEmail}`, next);
+      }
+      setStoredData('expense_tracker_expenses', next);
+      return next;
+    });
     setEditingItem(null);
   };
 
   const handleDeleteExpense = async (id: string) => {
+    const activeEmail = (profile?.email || getCachedEmail()).trim().toLowerCase();
     await api.deleteExpense(id);
-    setExpenses((prev) => prev.filter((e) => e.id !== id));
+    setExpenses((prev) => {
+      const next = prev.filter((e) => e.id !== id);
+      if (activeEmail) {
+        setStoredData(`expense_tracker_expenses_${activeEmail}`, next);
+      }
+      setStoredData('expense_tracker_expenses', next);
+      return next;
+    });
   };
 
   const handleAddIncome = async (data: {
@@ -202,8 +355,16 @@ export function App() {
     category?: string;
     date?: string;
   }) => {
-    const created = await api.addIncome(data);
-    setIncomes((prev) => [created, ...prev]);
+    const activeEmail = (profile?.email || getCachedEmail()).trim().toLowerCase();
+    const created = await api.addIncome({ ...data, user_email: activeEmail || undefined });
+    setIncomes((prev) => {
+      const next = [created, ...prev];
+      if (activeEmail) {
+        setStoredData(`expense_tracker_incomes_${activeEmail}`, next);
+      }
+      setStoredData('expense_tracker_incomes', next);
+      return next;
+    });
   };
 
   const handleEditIncome = (income: Income) => {
@@ -211,22 +372,40 @@ export function App() {
   };
 
   const handleSaveEditedIncome = async (id: string, updates: Partial<Income>) => {
+    const activeEmail = (profile?.email || getCachedEmail()).trim().toLowerCase();
     const updated = await api.updateIncome(id, updates);
-    setIncomes((prev) => prev.map((i) => (i.id === id ? updated : i)));
+    setIncomes((prev) => {
+      const next = prev.map((i) => (i.id === id ? updated : i));
+      if (activeEmail) {
+        setStoredData(`expense_tracker_incomes_${activeEmail}`, next);
+      }
+      setStoredData('expense_tracker_incomes', next);
+      return next;
+    });
     setEditingItem(null);
   };
 
   const handleDeleteIncome = async (id: string) => {
+    const activeEmail = (profile?.email || getCachedEmail()).trim().toLowerCase();
     await api.deleteIncome(id);
-    setIncomes((prev) => prev.filter((i) => i.id !== id));
+    setIncomes((prev) => {
+      const next = prev.filter((i) => i.id !== id);
+      if (activeEmail) {
+        setStoredData(`expense_tracker_incomes_${activeEmail}`, next);
+      }
+      setStoredData('expense_tracker_incomes', next);
+      return next;
+    });
   };
 
   const handleSaveBudgets = async (newBudgets: BudgetSettings) => {
-    const saved = await api.saveBudgets(newBudgets);
+    const activeEmail = (profile?.email || getCachedEmail()).trim().toLowerCase();
+    const saved = await api.saveBudgets(newBudgets, activeEmail || undefined);
     setBudgets(saved);
-    try {
-      localStorage.setItem('expense_tracker_budgets', JSON.stringify(saved));
-    } catch {}
+    setStoredData('expense_tracker_budgets', saved);
+    if (activeEmail) {
+      setStoredData(`expense_tracker_budgets_${activeEmail}`, saved);
+    }
   };
 
   const handleSaveWeeklyBudget = async (newWeeklyBudget: number | null) => {
@@ -238,18 +417,42 @@ export function App() {
   };
 
   const handleAddGoal = async (data: any) => {
-    const created = await api.addGoal(data);
-    setGoals((prev) => [created, ...prev]);
+    const activeEmail = (profile?.email || getCachedEmail()).trim().toLowerCase();
+    const created = await api.addGoal({ ...data, user_email: activeEmail || undefined });
+    setGoals((prev) => {
+      const next = [created, ...prev];
+      if (activeEmail) {
+        setStoredData(`expense_tracker_goals_${activeEmail}`, next);
+      }
+      setStoredData('expense_tracker_goals', next);
+      return next;
+    });
   };
 
   const handleUpdateGoal = async (id: string, updates: any) => {
+    const activeEmail = (profile?.email || getCachedEmail()).trim().toLowerCase();
     const updated = await api.updateGoal(id, updates);
-    setGoals((prev) => prev.map((g) => (g.id === id ? updated : g)));
+    setGoals((prev) => {
+      const next = prev.map((g) => (g.id === id ? updated : g));
+      if (activeEmail) {
+        setStoredData(`expense_tracker_goals_${activeEmail}`, next);
+      }
+      setStoredData('expense_tracker_goals', next);
+      return next;
+    });
   };
 
   const handleDeleteGoal = async (id: string) => {
+    const activeEmail = (profile?.email || getCachedEmail()).trim().toLowerCase();
     await api.deleteGoal(id);
-    setGoals((prev) => prev.filter((g) => g.id !== id));
+    setGoals((prev) => {
+      const next = prev.filter((g) => g.id !== id);
+      if (activeEmail) {
+        setStoredData(`expense_tracker_goals_${activeEmail}`, next);
+      }
+      setStoredData('expense_tracker_goals', next);
+      return next;
+    });
   };
 
   const handleSaveReportSettings = async (settings: Partial<WeeklyReportSettings>) => {
@@ -258,13 +461,14 @@ export function App() {
   };
 
   const handleSaveProfile = async (data: { full_name: string; email: string }) => {
+    const cleanEmail = (data.email || '').trim().toLowerCase();
     const res = await api.saveProfile(data);
-    const updated = res.profile || { full_name: data.full_name, email: data.email, updated_at: new Date().toISOString() };
+    const updated = res.profile || { full_name: data.full_name, email: cleanEmail, updated_at: new Date().toISOString() };
     setProfile(updated);
-    try {
-      localStorage.setItem('expense_tracker_profile', JSON.stringify(updated));
-      localStorage.setItem('expense_tracker_account_created', 'true');
-    } catch {}
+    setStoredData('expense_tracker_profile', updated);
+    localStorage.setItem('expense_tracker_account_created', 'true');
+    // Immediately reload and restore all historical data for this email!
+    await fetchAllData(cleanEmail);
   };
 
   return (
