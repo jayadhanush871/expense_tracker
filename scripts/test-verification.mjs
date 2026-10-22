@@ -1,0 +1,162 @@
+import { db } from '../server/db.js';
+import {
+  calculateWeeklyFinancialSummary,
+  sendWeeklyReportEmail,
+  sendTestVerificationEmail,
+  generateEmailHtml,
+  generateEmailText
+} from '../server/resend-service.js';
+import { detectCategory } from '../server/index.js';
+
+console.log('====================================================');
+console.log('🧪 RUNNING COMPREHENSIVE EXPENSE TRACKER VERIFICATION');
+console.log('====================================================\n');
+
+async function runTests() {
+  let passed = 0;
+  let failed = 0;
+
+  function assert(condition, message) {
+    if (condition) {
+      console.log(`✅ PASS: ${message}`);
+      passed++;
+    } else {
+      console.error(`❌ FAIL: ${message}`);
+      failed++;
+    }
+  }
+
+  try {
+    // TEST 1: Profile Creation with ONLY Full Name and Email Address
+    console.log('--- TEST SUITE 1: SIMPLE PROFILE CREATION ---');
+    const profileData = {
+      full_name: 'Dhanush',
+      email: 'dhanush@example.com'
+    };
+    const savedProfile = await db.saveProfile(profileData);
+    assert(savedProfile.full_name === 'Dhanush', 'Profile full_name saved correctly as Dhanush');
+    assert(savedProfile.email === 'dhanush@example.com', 'Profile email saved correctly as dhanush@example.com');
+    assert(savedProfile.updated_at !== undefined, 'Profile timestamp recorded');
+
+    // TEST 2: Add Expense (₹40 for "Tea and snacks") with Auto Date/Time & Category Detection
+    console.log('\n--- TEST SUITE 2: QUICK-ADD EXPENSE & AUTO CATEGORY ---');
+    const detectedCat = detectCategory('Tea and snacks');
+    assert(detectedCat === 'Food & Drinks', `Category for "Tea and snacks" auto-detected as Food & Drinks (got: ${detectedCat})`);
+
+    const now = new Date();
+    const autoDate = now.toISOString().split('T')[0];
+    const autoTime = now.toTimeString().split(' ')[0];
+
+    const expense = await db.addExpense({
+      user_email: 'dhanush@example.com',
+      amount: 40,
+      description: 'Tea and snacks',
+      category: detectedCat,
+      date: autoDate,
+      time: autoTime
+    });
+
+    assert(expense.amount === 40, 'Expense amount is ₹40');
+    assert(expense.description === 'Tea and snacks', 'Description is "Tea and snacks"');
+    assert(expense.category === 'Food & Drinks', 'Category assigned as Food & Drinks');
+    assert(expense.date === autoDate, `System automatically captured date: ${expense.date}`);
+    assert(expense.time !== undefined && expense.time.length > 0, `System automatically captured time: ${expense.time}`);
+
+    // TEST 3: Confirm Persistent Storage
+    console.log('\n--- TEST SUITE 3: PERSISTENT STORAGE CONFIRMATION ---');
+    const allExpenses = await db.getExpenses('dhanush@example.com');
+    const found = allExpenses.find(e => e.id === expense.id);
+    assert(found !== undefined, 'Expense found in database store');
+    assert(found.amount === 40, 'Persisted amount is exactly ₹40');
+
+    // TEST 4: Budget Settings (Weekly, Monthly, Category)
+    console.log('\n--- TEST SUITE 4: BUDGET SETTINGS & THRESHOLDS ---');
+    const savedBudgets = await db.saveBudgets('dhanush@example.com', {
+      weekly_budget: 2000,
+      monthly_budget: 15000,
+      category_budgets: {
+        'Food & Drinks': 4000,
+        'Transportation': 2000
+      }
+    });
+
+    assert(savedBudgets.weekly_budget === 2000, 'Weekly budget set to ₹2,000');
+    assert(savedBudgets.monthly_budget === 15000, 'Monthly budget set to ₹15,000');
+
+    // TEST 5: Generate Weekly Report from Saved Database Records
+    console.log('\n--- TEST SUITE 5: WEEKLY FINANCIAL REPORT CALCULATION ---');
+    const summary = await calculateWeeklyFinancialSummary('dhanush@example.com');
+
+    assert(summary.userName === 'Dhanush', `User greeting uses saved name: ${summary.userName}`);
+    assert(summary.recipientEmail === 'dhanush@example.com', `Recipient matches profile email: ${summary.recipientEmail}`);
+    assert(summary.totalExpenses >= 40, `Total weekly expenses includes ₹40 (Actual: ₹${summary.totalExpenses})`);
+    assert(summary.weeklyBudget === 2000, 'Weekly budget correctly reported as ₹2,000');
+    assert(summary.remainingBudget === 2000 - summary.totalExpenses, `Remaining budget correctly calculated: ₹${summary.remainingBudget}`);
+    assert(summary.budgetUtilizedPct === (summary.totalExpenses / 2000) * 100, `Budget utilization % correctly calculated: ${summary.budgetUtilizedPct.toFixed(1)}%`);
+    assert(summary.transactionCount >= 1, `Transactions count accurate: ${summary.transactionCount}`);
+    assert(summary.dailyBreakdown.length === 7, 'Daily breakdown contains all 7 days of the week');
+    assert(summary.factualSummary.length > 0, `Factual spending overview generated: "${summary.factualSummary}"`);
+
+    // TEST 6: HTML & Plain-Text Email Generation
+    console.log('\n--- TEST SUITE 6: EMAIL CONTENT & FORMATTING ---');
+    const htmlEmail = generateEmailHtml(summary);
+    const textEmail = generateEmailText(summary);
+
+    assert(htmlEmail.includes('Hello Dhanush'), 'HTML Email includes personalized greeting');
+    assert(htmlEmail.includes('Weekly Financial Summary'), 'HTML Email includes report title');
+    assert(htmlEmail.includes('Category Breakdown'), 'HTML Email includes Category Breakdown');
+    assert(htmlEmail.includes('Daily Spending Breakdown'), 'HTML Email includes Daily Breakdown');
+    assert(textEmail.includes('Total weekly expenses:'), 'Plain-text Email includes total weekly expenses');
+    assert(textEmail.includes('Weekly budget:'), 'Plain-text Email includes weekly budget');
+
+    // TEST 7: Duplicate Prevention Check
+    console.log('\n--- TEST SUITE 7: EMAIL DISPATCH & DUPLICATE PREVENTION ---');
+    // Save report settings
+    await db.saveReportSettings('dhanush@example.com', {
+      is_active: true,
+      delivery_day: 'Sunday',
+      delivery_time: '09:00',
+      timezone: 'Asia/Kolkata',
+      last_sent_period: summary.periodKey // simulate already sent
+    });
+
+    const duplicateCheck = await sendWeeklyReportEmail({ force: false, targetEmail: 'dhanush@example.com' });
+    assert(duplicateCheck.skipped === true, 'Duplicate report for the same period was successfully skipped');
+
+    // Reset last_sent_period to test send failure logging (when RESEND_API_KEY is not set)
+    await db.saveReportSettings('dhanush@example.com', {
+      is_active: true,
+      delivery_day: 'Sunday',
+      delivery_time: '09:00',
+      timezone: 'Asia/Kolkata',
+      last_sent_period: null
+    });
+
+    const sendAttempt = await sendWeeklyReportEmail({ force: true, targetEmail: 'dhanush@example.com' });
+    assert(sendAttempt.setup_required === true || sendAttempt.success === true, 'Handled credentials status accurately (setup_required or success)');
+
+    // Verify Audit Logs
+    const logs = await db.getEmailLogs('dhanush@example.com');
+    assert(logs.length > 0, `Delivery attempt audit log recorded in database (Total logs: ${logs.length})`);
+    assert(logs[0].recipient === 'dhanush@example.com', `Logged recipient is dhanush@example.com`);
+
+    // TEST 8: Zero spending handling
+    console.log('\n--- TEST SUITE 8: ZERO SPENDING HANDLING ---');
+    // Future date with no transactions
+    const zeroSummary = await calculateWeeklyFinancialSummary('nonexistent@example.com', '2030-01-07');
+    assert(zeroSummary.totalExpenses === 0, 'Zero expenses calculated for week with no transactions');
+    assert(zeroSummary.transactionCount === 0, 'Zero transactions recorded');
+    assert(zeroSummary.factualSummary.includes('zero expenses'), 'Factual summary notes zero spending without inventing transactions');
+
+    console.log('\n====================================================');
+    console.log(`TEST RESULTS: ${passed} PASSED, ${failed} FAILED`);
+    console.log('====================================================');
+
+    process.exit(failed > 0 ? 1 : 0);
+  } catch (err) {
+    console.error('Fatal error during test execution:', err);
+    process.exit(1);
+  }
+}
+
+runTests();
