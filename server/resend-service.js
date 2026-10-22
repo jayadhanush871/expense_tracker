@@ -151,7 +151,8 @@ export async function calculateWeeklyFinancialSummary(userEmail, endDateStr = nu
     prevTotalExpenses,
     spendingDifference,
     spendingChangePct,
-    factualSummary
+    factualSummary,
+    expenses: currentExpenses
   };
 }
 
@@ -439,30 +440,52 @@ export function generateEmailText(summary) {
 }
 
 // Formspree Integration for Form Data Storage & Email Delivery
+// Sends ONLY: Week from date to to date, how much amount spent, for what is spent, remaining balance, and that week spent amount.
 export async function sendViaFormspree(summary, targetEmail) {
   const formspreeUrl = process.env.FORMSPREE_URL || 'https://formspree.io/f/moejgbov';
 
+  // Format "for what is spent"
+  let forWhatSpent = 'No expenses recorded this week';
+  if (summary.expenses && summary.expenses.length > 0) {
+    forWhatSpent = summary.expenses
+      .map(e => `${e.description} (${e.category}): ${formatINR(e.amount)}`)
+      .join('\n');
+  } else if (summary.categoryBreakdown && summary.categoryBreakdown.length > 0) {
+    forWhatSpent = summary.categoryBreakdown
+      .map(c => `${c.category}: ${formatINR(c.amount)}`)
+      .join('\n');
+  }
+
+  // Calculate remaining balance (from budget or cash flow)
+  const remainingBalance = summary.isBudgetSet
+    ? formatINR(summary.remainingBudget)
+    : formatINR(summary.netCashFlow || 0);
+
   const payload = {
-    form_type: 'Weekly Expense and Budget Report',
-    recipient_email: targetEmail || summary.recipientEmail,
-    user_name: summary.userName,
     email: targetEmail || summary.recipientEmail,
     _replyto: targetEmail || summary.recipientEmail,
-    _subject: `Your Weekly Expense and Budget Report (${summary.periodStart} to ${summary.periodEnd})`,
-    reporting_period: `${summary.periodStart} to ${summary.periodEnd}`,
-    total_expenses: formatINR(summary.totalExpenses),
-    weekly_budget: summary.isBudgetSet ? formatINR(summary.weeklyBudget) : 'Not Configured',
-    remaining_budget: summary.isBudgetSet ? formatINR(summary.remainingBudget) : 'N/A',
-    budget_utilization_percent: summary.isBudgetSet ? `${summary.budgetUtilizedPct.toFixed(1)}%` : 'N/A',
-    number_of_transactions: summary.transactionCount,
-    highest_expense: summary.highestExpense
-      ? `${formatINR(summary.highestExpense.amount)} (${summary.highestExpense.description} - ${summary.highestExpense.category})`
-      : 'None',
-    average_daily_spending: formatINR(summary.averageDailySpending),
-    category_breakdown: summary.categoryBreakdown.map(c => `${c.category}: ${formatINR(c.amount)} (${c.percentage.toFixed(1)}%)`).join(' | ') || 'None',
-    daily_breakdown: summary.dailyBreakdown.map(d => `${d.day} (${d.date}): ${formatINR(d.total)}`).join(' | '),
-    factual_spending_summary: summary.factualSummary,
-    report_text_summary: generateEmailText(summary)
+    _subject: `Weekly Expense Report: ${summary.periodStart} to ${summary.periodEnd}`,
+    
+    // Requested exact fields:
+    Week_From_Date: summary.periodStart,
+    Week_To_Date: summary.periodEnd,
+    How_Much_Amount_Spent: formatINR(summary.totalExpenses),
+    That_Week_Spent_Amount: formatINR(summary.totalExpenses),
+    For_What_It_Was_Spent: forWhatSpent,
+    Remaining_Balance: remainingBalance,
+
+    // Concise clean message
+    message: [
+      `WEEKLY EXPENSE REPORT`,
+      `------------------------------------------`,
+      `Week: ${summary.periodStart} to ${summary.periodEnd}`,
+      `That Week Spent Amount: ${formatINR(summary.totalExpenses)}`,
+      `Remaining Balance: ${remainingBalance}`,
+      `------------------------------------------`,
+      `For What Was Spent:`,
+      forWhatSpent,
+      `------------------------------------------`
+    ].join('\n')
   };
 
   const response = await fetch(formspreeUrl, {
@@ -480,7 +503,7 @@ export async function sendViaFormspree(summary, targetEmail) {
   }
 
   const data = await response.json();
-  return { success: true, service: 'Formspree', data };
+  return { success: true, service: 'Formspree', data, payload };
 }
 
 // Dispatch report via Formspree & Resend with duplicate check & audit logging

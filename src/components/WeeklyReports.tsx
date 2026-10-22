@@ -561,10 +561,10 @@ export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
                 <strong>Subject:</strong> Your Weekly Expense and Budget Report ({summary.periodStart} - {summary.periodEnd})
               </div>
               <div className="text-xs font-mono text-slate-500">
-                <strong>To:</strong> {summary.userName} &lt;{summary.recipientEmail}&gt;
+                <strong>To:</strong> {summary.userName || 'User'} &lt;{recipientInput || summary.recipientEmail}&gt;
               </div>
               <div className="text-sm font-bold text-slate-900 dark:text-white pt-1">
-                Hello {summary.userName},
+                Hello {summary.userName || 'User'},
               </div>
               <div className="text-xs text-slate-600 dark:text-slate-300">
                 Here is your weekly financial summary for the period{' '}
@@ -572,12 +572,41 @@ export const WeeklyReports: React.FC<WeeklyReportsProps> = ({
               </div>
             </div>
 
-            {/* Factual Summary Callout */}
-            <div className="p-4 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border-l-4 border-indigo-600 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-              <strong className="text-indigo-950 dark:text-indigo-200 block mb-1">
-                Factual Spending Overview:
-              </strong>
-              {summary.factualSummary}
+            {/* Exact Form Mail Fields Card as requested */}
+            <div className="p-4 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-2">
+              <div className="text-xs font-bold text-indigo-900 dark:text-indigo-200 uppercase tracking-wider">
+                Weekly Report Form Mail Summary (Sent via Formspree):
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-indigo-100 dark:border-slate-800">
+                  <span className="text-slate-500 text-[10px] block uppercase font-bold">Week Period</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    From {summary.periodStart} to {summary.periodEnd}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-indigo-100 dark:border-slate-800">
+                  <span className="text-slate-500 text-[10px] block uppercase font-bold">That Week Spent Amount</span>
+                  <span className="font-black text-rose-600 dark:text-rose-400 text-sm">
+                    {formatINR(summary.totalExpenses)}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-indigo-100 dark:border-slate-800 sm:col-span-2">
+                  <span className="text-slate-500 text-[10px] block uppercase font-bold">For What Was Spent</span>
+                  <div className="font-medium text-slate-800 dark:text-slate-200 mt-1 whitespace-pre-line">
+                    {summary.expenses && summary.expenses.length > 0 ? (
+                      summary.expenses.map(e => `• ${e.description} (${e.category}): ${formatINR(e.amount)}`).join('\n')
+                    ) : (
+                      'No expenses recorded this week (₹0 spent)'
+                    )}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-indigo-100 dark:border-slate-800 sm:col-span-2">
+                  <span className="text-slate-500 text-[10px] block uppercase font-bold">Remaining Balance</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    {summary.isBudgetSet ? formatINR(summary.remainingBudget) : formatINR(summary.netCashFlow || 0)}
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* Calculated KPI Grid */}
